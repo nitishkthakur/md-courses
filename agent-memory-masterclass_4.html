@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Memory — A Masterclass for clicode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F7FB; --panel:#EEF1F7; --panel-2:#E5E9F2;
+    --ink:#161A2E; --ink-soft:#454C68; --ink-faint:#737A95;
+    --line:#D7DCE8; --line-strong:#C2C9DA;
+    --signal:#4338CA;          /* the active agent / "now" */
+    --signal-tint:#ECEBFB;
+    --hot:#C2410C;             /* working memory, recency, "hot" */
+    --hot-tint:#FBEDE4;
+    --cold:#0E7490;            /* long-term, semantic, the graph, "cold" */
+    --cold-tint:#E2F0F3;
+    --warn:#9F1239;            /* forgetting, invalidation, pitfalls */
+    --warn-tint:#F8E6EC;
+    --display:"Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    --body:"Source Serif 4", Georgia, "Times New Roman", serif;
+    --mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --maxw:1180px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--body); font-size:18px; line-height:1.72;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px}
+
+  /* ---------- HERO ---------- */
+  .hero{padding:78px 0 46px; border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono); font-size:12.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--signal); font-weight:600}
+  h1{font-family:var(--display); font-weight:700; font-size:clamp(2.3rem,5.4vw,4.05rem); line-height:1.02; letter-spacing:-.02em; margin:.42em 0 .28em}
+  h1 .thin{color:var(--ink-soft); font-weight:500}
+  .lede{font-size:clamp(1.08rem,2vw,1.28rem); color:var(--ink-soft); max-width:60ch; margin:0}
+  .hero-grid{display:grid; grid-template-columns:1.45fr .9fr; gap:48px; align-items:center}
+  @media (max-width:880px){.hero-grid{grid-template-columns:1fr; gap:34px}}
+
+  /* thermal memory stack (the signature) */
+  .stack{display:flex; flex-direction:column; gap:7px; font-family:var(--display)}
+  .tier{border-radius:11px; padding:13px 16px; color:#fff; position:relative; overflow:hidden}
+  .tier .t-k{font-size:12px; letter-spacing:.12em; text-transform:uppercase; opacity:.92; font-weight:600}
+  .tier .t-v{font-size:15px; font-weight:500; opacity:.97}
+  .tier.t-work{background:linear-gradient(100deg,#C2410C,#E2640f)}
+  .tier.t-epi{background:linear-gradient(100deg,#7c3aa6,#9333a8)}
+  .tier.t-sem{background:linear-gradient(100deg,#1559a8,#2563b9)}
+  .tier.t-proc{background:linear-gradient(100deg,#0E7490,#0a8aa6)}
+  .tier.t-cold{background:linear-gradient(100deg,#334155,#475569)}
+  .stack-scale{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10.5px; color:var(--ink-faint); letter-spacing:.08em; text-transform:uppercase; margin-top:9px; padding:0 2px}
+  .stack-cap{font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); margin-top:14px; line-height:1.5}
+
+  /* ---------- LAYOUT ---------- */
+  .shell{display:grid; grid-template-columns:228px 1fr; gap:54px; padding:46px 0 90px}
+  @media (max-width:1000px){.shell{grid-template-columns:1fr; gap:0}}
+  nav.toc{position:sticky; top:22px; align-self:start; font-family:var(--display); font-size:13.5px; max-height:calc(100vh - 44px); overflow:auto}
+  @media (max-width:1000px){nav.toc{position:static; max-height:none; margin-bottom:30px; border:1px solid var(--line); border-radius:12px; padding:16px 18px; background:#fff}}
+  nav.toc .toc-h{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint); margin:0 0 12px}
+  nav.toc a{display:block; color:var(--ink-soft); text-decoration:none; padding:5px 0 5px 13px; border-left:2px solid var(--line); line-height:1.32; transition:color .15s,border-color .15s}
+  nav.toc a:hover{color:var(--signal); border-left-color:var(--signal)}
+  nav.toc a .n{font-family:var(--mono); font-size:11px; color:var(--ink-faint); margin-right:7px}
+
+  /* ---------- SECTIONS ---------- */
+  section{padding:30px 0 8px; border-top:1px solid var(--line); margin-top:34px}
+  section:first-of-type{border-top:none; margin-top:0}
+  .sec-eyebrow{font-family:var(--mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--ink-faint)}
+  .sec-eyebrow b{color:var(--signal); font-weight:600}
+  h2{font-family:var(--display); font-weight:700; font-size:clamp(1.6rem,3.3vw,2.3rem); line-height:1.08; letter-spacing:-.015em; margin:.2em 0 .5em}
+  h3{font-family:var(--display); font-weight:600; font-size:1.27rem; letter-spacing:-.01em; margin:1.9em 0 .35em; color:var(--ink)}
+  h4{font-family:var(--display); font-weight:600; font-size:1.04rem; margin:1.5em 0 .3em; color:var(--ink)}
+  p{margin:.7em 0}
+  a.inl{color:var(--signal); text-decoration:none; border-bottom:1px solid var(--line-strong)}
+  a.inl:hover{border-bottom-color:var(--signal)}
+  strong{font-weight:600}
+  em.term{font-style:normal; font-weight:600; color:var(--cold); font-family:var(--display); font-size:.97em}
+  code{font-family:var(--mono); font-size:.84em; background:var(--panel); border:1px solid var(--line); border-radius:5px; padding:1px 5px; color:#33384e}
+  ul,ol{margin:.6em 0; padding-left:1.3em}
+  li{margin:.32em 0}
+  ul.tight li{margin:.18em 0}
+
+  /* callouts */
+  .box{border-radius:13px; padding:18px 20px 16px; margin:22px 0; border:1px solid var(--line); background:#fff; position:relative}
+  .box .box-k{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; display:flex; align-items:center; gap:8px; margin-bottom:7px}
+  .box p{margin:.4em 0; font-size:.97em}
+  .box .dot{width:9px; height:9px; border-radius:50%; display:inline-block}
+  .box.term{background:var(--cold-tint); border-color:#bfdfe6}
+  .box.term .box-k{color:var(--cold)} .box.term .dot{background:var(--cold)}
+  .box.iv{background:var(--signal-tint); border-color:#d4d2f5}
+  .box.iv .box-k{color:var(--signal)} .box.iv .dot{background:var(--signal)}
+  .box.bridge{background:var(--hot-tint); border-color:#eccfbb}
+  .box.bridge .box-k{color:var(--hot)} .box.bridge .dot{background:var(--hot)}
+  .box.check{background:#fff; border:1px dashed var(--line-strong)}
+  .box.check .box-k{color:var(--ink-soft)} .box.check .dot{background:var(--ink-soft)}
+  .box.pit{background:var(--warn-tint); border-color:#ecc6d2}
+  .box.pit .box-k{color:var(--warn)} .box.pit .dot{background:var(--warn)}
+  .box.check ol{margin:.3em 0 .2em; padding-left:1.25em}
+  .box.check li{margin:.4em 0}
+  .box.iv ul{margin:.3em 0}
+
+  /* tables */
+  .tbl-scroll{overflow-x:auto; margin:22px 0; border:1px solid var(--line); border-radius:12px}
+  table{border-collapse:collapse; width:100%; font-size:14.5px; font-family:var(--display); background:#fff; min-width:640px}
+  th,td{text-align:left; padding:11px 14px; border-bottom:1px solid var(--line); vertical-align:top}
+  th{background:var(--panel); font-weight:600; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-soft); position:sticky; top:0}
+  tr:last-child td{border-bottom:none}
+  td b{color:var(--ink)}
+  .pill{font-family:var(--mono); font-size:10.5px; padding:2px 7px; border-radius:20px; font-weight:600; white-space:nowrap}
+  .pill.hot{background:var(--hot-tint); color:var(--hot)}
+  .pill.cold{background:var(--cold-tint); color:var(--cold)}
+  .pill.sig{background:var(--signal-tint); color:var(--signal)}
+
+  /* code block */
+  pre{background:#171b2e; color:#dfe3f2; font-family:var(--mono); font-size:13px; line-height:1.6; padding:17px 19px; border-radius:11px; overflow-x:auto; margin:20px 0}
+  pre .c{color:#7e87a8} pre .k{color:#c4b5fd} pre .s{color:#fcd9b8} pre .g{color:#7fd1c4}
+
+  /* loop svg */
+  .figure{margin:26px 0; padding:22px; background:#fff; border:1px solid var(--line); border-radius:13px}
+  .figure figcaption{font-family:var(--mono); font-size:11.5px; color:var(--ink-faint); margin-top:13px; line-height:1.55; text-align:center}
+
+  /* small diagram rows */
+  .flow{display:flex; align-items:stretch; gap:0; flex-wrap:wrap; font-family:var(--display); margin:20px 0}
+  .flow .step{flex:1 1 130px; min-width:120px; background:#fff; border:1px solid var(--line); border-radius:11px; padding:12px 13px; margin:5px}
+  .flow .step .sk{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--signal); font-weight:600}
+  .flow .step .sv{font-size:13.5px; color:var(--ink-soft); margin-top:3px}
+
+  .lvl{display:grid; grid-template-columns:auto 1fr; gap:0 18px; margin:20px 0}
+  .lvl .ln{font-family:var(--display); font-weight:700; font-size:1.5rem; color:var(--signal); grid-column:1; padding-top:2px}
+  .lvl .lc{grid-column:2; padding-bottom:18px; border-bottom:1px solid var(--line); margin-bottom:18px}
+  .lvl .lc:last-child{border-bottom:none}
+  .lvl .lt{font-family:var(--display); font-weight:600; font-size:1.05rem}
+  .lvl .ld{font-size:.96em; color:var(--ink-soft); margin-top:2px}
+
+  hr.soft{border:none; border-top:1px solid var(--line); margin:30px 0}
+  .footer{border-top:1px solid var(--line); padding:34px 0 70px; font-family:var(--display); color:var(--ink-faint); font-size:13.5px}
+  .src{font-size:14px; font-family:var(--display)}
+  .src li{margin:.45em 0; color:var(--ink-soft)}
+  .src b{color:var(--ink)}
+  .kicker{font-family:var(--display); font-weight:600; color:var(--ink); font-size:1.06em; margin-top:1.6em}
+  ::selection{background:#d9d7f7}
+  .part{border-top:3px solid var(--ink); margin-top:62px; padding:34px 0 2px}
+  .part .pk{font-family:var(--mono); font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:var(--signal); font-weight:600}
+  .part h2{font-family:var(--display); font-weight:700; font-size:clamp(1.9rem,4vw,2.75rem); letter-spacing:-.02em; line-height:1.04; margin:.22em 0 .35em}
+  .part .part-lede{color:var(--ink-soft); max-width:62ch; font-size:1.06rem; margin:0}
+  .part + section{border-top:none; margin-top:26px}
+  nav.toc .toc-group{font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink); font-weight:700; margin:18px 0 7px; padding-top:13px; border-top:2px solid var(--ink); border-left:none; line-height:1.35}
+  ol.ranked{counter-reset:r; list-style:none; padding-left:0; margin:.7em 0}
+  ol.ranked li{counter-increment:r; position:relative; padding:9px 0 9px 44px; border-bottom:1px solid var(--line)}
+  ol.ranked li:last-child{border-bottom:none}
+  ol.ranked li::before{content:counter(r); position:absolute; left:0; top:8px; width:28px; height:28px; border-radius:7px; background:var(--signal); color:#fff; font-family:var(--display); font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center}
+  ol.ranked li b{font-family:var(--display)}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <div class="eyebrow">Deep research · teaching brief · prepared for Nitish</div>
+      <h1>Memory for<br>AI&nbsp;Agents<span class="thin">.</span></h1>
+      <p class="lede">From the stateless transformer up to self-organising, temporally-aware memory systems — and a concrete blueprint for giving <strong>clicode</strong> the short- and long-term memory it needs to do deep work over the BMG estate.</p>
+    </div>
+    <div>
+      <div class="stack" role="img" aria-label="The memory hierarchy from hot working memory to cold archive">
+        <div class="tier t-work"><div class="t-k">Working · hot</div><div class="t-v">Context window</div></div>
+        <div class="tier t-epi"><div class="t-k">Episodic</div><div class="t-v">What happened / was tried</div></div>
+        <div class="tier t-sem"><div class="t-k">Semantic</div><div class="t-v">Facts · entities · the graph</div></div>
+        <div class="tier t-proc"><div class="t-k">Procedural</div><div class="t-v">Skills · playbooks · prompts</div></div>
+        <div class="tier t-cold"><div class="t-k">Cold · archive</div><div class="t-v">Everything, persisted</div></div>
+      </div>
+      <div class="stack-scale"><span>fast · volatile · scarce</span><span>slow · durable · vast</span></div>
+      <div class="stack-cap">This thermal stack is the spine of the whole field. Almost every system below is an answer to one question: <em>what stays hot, what goes cold, and how do you move things between the two?</em></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap shell">
+
+  <nav class="toc" aria-label="Contents">
+    <p class="toc-h">Contents</p>
+    <a href="#s0"><span class="n">00</span>You already built this</a>
+    <a href="#s1"><span class="n">01</span>Why memory exists at all</a>
+    <a href="#s2"><span class="n">02</span>Why not just a huge window?</a>
+    <a href="#s3"><span class="n">03</span>The cognitive map of memory</a>
+    <a href="#s4"><span class="n">04</span>The operations: write–manage–read</a>
+    <a href="#s5"><span class="n">05</span>Short-term / working memory</a>
+    <a href="#s6"><span class="n">06</span>Long-term: representations</a>
+    <a href="#s7"><span class="n">07</span>The systems landscape</a>
+    <a href="#s8"><span class="n">08</span>Where it is headed</a>
+    <a href="#s9"><span class="n">09</span>A blueprint for clicode</a>
+    <a href="#s10"><span class="n">10</span>Interview preparation</a>
+    <a href="#s11"><span class="n">11</span>Neighbouring topics</a>
+    <div class="toc-group">Concrete portable implementations</div>
+    <a href="#s12"><span class="n">12</span>Markdown-file memory · prompts &amp; tools</a>
+    <a href="#s13"><span class="n">13</span>The firewall-proof upgrade · SQLite engine</a>
+    <a href="#s14"><span class="n">14</span>Invocation · tools vs MCP · md vs SQLite</a>
+    <a href="#src"><span class="n">15</span>Sources</a>
+  </nav>
+
+  <main>
+
+  <!-- ============ 00 ============ -->
+  <section id="s0">
+    <div class="sec-eyebrow"><b>00</b> · Orientation</div>
+    <h2>You have already built an agent-memory system</h2>
+    <p>Before any theory, the most useful thing I can tell you is this: <strong>clicode, BMG and EUCT are already case studies in agent memory.</strong> You solved the field's hardest problem — operating over an estate ~50× larger than any context window — and you reached for exactly the primitives the literature now names. The goal of this brief is to give you the <em class="term">vocabulary</em> and the <em class="term">field map</em> so you can (a) see the structure of what you built, (b) extend clicode deliberately rather than by instinct, and (c) narrate all of it in interviews in the language hiring managers are now using.</p>
+
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Career bridge · your work, in the field's words</div>
+      <p>The NetworkX/JSON lineage graph behind an MCP server is <strong>non-parametric semantic memory with just-in-time retrieval</strong>. Your <code>SKILL.md</code> files are <strong>procedural memory</strong>. The EUCT progressive-disclosure Excel server is textbook <strong>JIT context loading with progressive disclosure</strong> — the same pattern Anthropic describes for Claude Code. Your recursive "filter-then-traverse" column tracing is <strong>iterative graph retrieval</strong>. Your incremental, batched lineage generation is a hand-rolled <strong>compaction</strong> strategy. You were missing only one tier — <strong>episodic memory</strong> — and §09 shows where to add it.</p>
+    </div>
+    <p>I'll teach from first principles up, in roughly the order a system is built: why memory is necessary, the cognitive taxonomy, the core operations, the short-term toolkit, the long-term representations, the named systems, the frontier, and finally a buildable clicode design with comprehension checks and interview drills throughout.</p>
+  </section>
+
+  <!-- ============ 01 ============ -->
+  <section id="s1">
+    <div class="sec-eyebrow"><b>01</b> · First principles</div>
+    <h2>Why memory exists at all</h2>
+    <p>Start from the metal. A large language model is a <strong>pure, stateless function</strong>. Each call computes <code>output = f(context)</code> and then forgets everything. There is no hidden variable carried between calls, no register that survives the forward pass. The weights are frozen at inference; the only thing the model "knows" in the moment is the sequence of tokens you hand it — <em class="term">the context window</em>.</p>
+    <p>Everything we call "memory" is therefore an <strong>illusion engineered around a stateless function</strong>: an external apparatus that makes <code>f</code> behave as if it had persistent state. That apparatus has exactly one channel into the model — it must take stored information, select the right pieces, and <em>write them back into the context window</em> before the next call. This single constraint generates the entire field.</p>
+
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>Two foundational terms</div>
+      <p><strong>Context window</strong> — the bounded token buffer the model attends to on a given call. It is the agent's <em>working memory</em>: fast, fully accessible, but volatile (gone after the call) and scarce (fixed size, and, as §02 shows, degrading well before it fills).</p>
+      <p><strong>External / long-term memory</strong> — anything stored outside the window (files, databases, vector indexes, graphs) that must be explicitly <em>retrieved and re-injected</em> to have any effect. The model cannot "recall" it the way a human does; a tool call or a retrieval step has to physically place it in context.</p>
+    </div>
+
+    <p>The 2025–26 surveys converge on a clean way to describe the machinery: agent memory is a <strong>write → manage → read loop</strong> coupled to the agent's perception and action. You decide what to <em>write</em> out of the conversation, how to <em>manage</em> it once stored (organise, merge, forget), and how to <em>read</em> the right slice back when it is needed. Keep that loop in mind; §04 dissects each verb.</p>
+
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Career bridge</div>
+      <p>This is exactly the frame for BMG. The lineage graph is "managed" external memory; the MCP server is the "read" channel; your column-by-column generation is the "write" of finished lineage. Saying "I designed the write–manage–read loop for a coding agent over a 356-file estate" is precise and lands immediately.</p>
+    </div>
+  </section>
+
+  <!-- ============ 02 ============ -->
+  <section id="s2">
+    <div class="sec-eyebrow"><b>02</b> · The motivating constraint</div>
+    <h2>Why not just use a giant context window?</h2>
+    <p>This is the question every interviewer asks, and the answer is the intellectual core of the field. If 1M- and 2M-token windows exist, why bother with memory engineering at all? Because <strong>a long window is necessary but not sufficient</strong>, for four independent reasons.</p>
+
+    <h3>1 · Context rot — longer context is measurably worse</h3>
+    <p>Chroma's 2025 <em>context rot</em> study tested 18 frontier models (including GPT-4.1, Claude 4, Gemini 2.5, Qwen3) and found that every one degrades as input length grows — not at the window limit, but continuously. Strikingly, even when distractors are stripped out and <em>only total length</em> is varied, accuracy still falls (~8% on average from length alone). Long context is intrinsically harder regardless of what fills it. Practitioners now budget an <em class="term">effective context window</em> that is often 4–10× smaller than the advertised maximum.</p>
+
+    <h3>2 · Lost-in-the-middle — position is not neutral</h3>
+    <p>The Liu et&nbsp;al. "lost in the middle" result (Stanford/TACL) shows models attend well to the <em>start</em> and <em>end</em> of context and poorly to the <em>middle</em> — a 30%+ accuracy drop for facts buried mid-prompt. Bigger windows pushed the problem further out but did not remove it. So even with perfect retrieval, <em>where</em> you place evidence matters.</p>
+
+    <h3>3 · The attention budget is quadratic</h3>
+    <p>Transformer self-attention forms <span style="font-family:var(--mono);font-size:.92em">n²</span> pairwise interactions for <span style="font-family:var(--mono)">n</span> tokens: 100K tokens ⇒ ~10 billion relationships. Anthropic frames this as a finite <em class="term">attention budget</em> — every token you add depletes the model's ability to focus on the rest. Models also see far more short sequences than long ones in training, so they have fewer specialised parameters for long-range dependence. The result is a <em>performance gradient</em>, not a hard cliff.</p>
+
+    <h3>4 · Cost, latency, and impermanence</h3>
+    <p>Tokens cost money and time linearly; a fat prompt on every turn is expensive and slow. And the window is <em>ephemeral</em> — it vanishes when the session ends. None of "what the user told me last week", "what I tried yesterday that failed", or "the conventions of this codebase" survive in a window. Persistence <em>across</em> sessions is something only external memory provides.</p>
+
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>Interview answer · "Why not just use long context?"</div>
+      <p>Compress it to: <em>"Long context is real but it rots — accuracy degrades with length and with mid-prompt position (Chroma context-rot, lost-in-the-middle), attention is quadratic so there's a finite attention budget, and the window is both costly per-token and ephemeral across sessions. So you treat context as a scarce, decaying resource: keep the smallest set of high-signal tokens hot, push the long tail to external memory, and retrieve just-in-time."</em> That last sentence is the thesis of the whole discipline.</p>
+    </div>
+
+    <p>This is why the field converged on a single architecture by late 2025: <strong>working memory inside the window, the long tail outside it</strong>; and for stable, frequently-used knowledge, <em class="term">compiled knowledge</em> (a curated wiki / set of cards) often beats live retrieval — Karpathy's "LLM wiki" point. The discipline that does this curation has a name: <strong>context engineering</strong>.</p>
+
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>Term · context engineering</div>
+      <p>Anthropic's framing (Sept 2025): the successor to prompt engineering. Where prompt engineering writes a good instruction once, <strong>context engineering is the iterative practice of curating the optimal set of tokens at every step of inference</strong> — system prompt, tools, examples, message history, retrieved data, and memory. The guiding principle: <em>find the smallest set of high-signal tokens that maximises the probability of the desired outcome.</em> Memory is the part of context engineering concerned with persistence.</p>
+    </div>
+  </section>
+
+  <!-- ============ 03 ============ -->
+  <section id="s3">
+    <div class="sec-eyebrow"><b>03</b> · The taxonomy</div>
+    <h2>The cognitive map of memory</h2>
+    <p>The field borrows its organising scheme straight from human cognition (the CoALA framework — <em>Cognitive Architectures for Language Agents</em> — made this canonical). It is worth internalising because it doubles as a design checklist: a serious agent wants <em>all</em> of these tiers, and most weak agents are weak because they have only one.</p>
+
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Memory type</th><th>Holds</th><th>In an LLM agent</th><th>In clicode</th></tr></thead>
+      <tbody>
+        <tr><td><b>Working / short-term</b> <span class="pill hot">hot</span></td><td>The current task state</td><td>The context window itself; scratchpads, to-do lists</td><td>The live window + your batched generation buffer</td></tr>
+        <tr><td><b>Episodic</b></td><td>Specific past events &amp; experiences — "what happened / what I tried"</td><td>Past sessions, trajectories, few-shot examples of success/failure</td><td><span style="color:var(--warn)">Missing</span> — a log of which traces worked per table/column</td></tr>
+        <tr><td><b>Semantic</b> <span class="pill cold">cold</span></td><td>Facts &amp; knowledge — entities, relations, conventions</td><td>Knowledge bases, vector stores, knowledge graphs, user/domain facts</td><td>The 600-node lineage graph (NetworkX/JSON via MCP)</td></tr>
+        <tr><td><b>Procedural</b></td><td>How to do things — skills, routines</td><td>System prompt, tool definitions, learned workflows, <code>SKILL.md</code></td><td>Your task-specific skill files</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <p><strong>One orthogonal axis matters too.</strong> The surveys split <em>all</em> memory into two kinds by <em>where</em> it physically lives:</p>
+    <ul>
+      <li><strong>Parametric memory</strong> — knowledge baked into the model's weights (what fine-tuning or pre-training stores). Fast at inference, but opaque, hard to edit, hard to attribute, and frozen until you retrain.</li>
+      <li><strong>Contextual / non-parametric memory</strong> — explicit external information (text, vectors, graphs) retrieved into context. Slower (needs a retrieval hop) but <strong>inspectable, editable, attributable, and governable.</strong></li>
+    </ul>
+    <p>Most deployed agents lean heavily non-parametric, precisely because you can audit it, correct it, and delete it on request. For anyone coming from a regulated-finance world, that property — a memory you can <em>explain and expunge</em> — is not a footnote; it is the whole game (think lineage provenance, GDPR erasure, model governance).</p>
+
+    <div class="box check">
+      <div class="box-k"><span class="dot"></span>Comprehension check</div>
+      <ol>
+        <li>Classify each clicode component as working / episodic / semantic / procedural: the lineage graph; a <code>SKILL.md</code>; the batched-generation buffer; a hypothetical log of "this SQL parse failed, here's the fix."</li>
+        <li>Your BMG lineage doc must be auditable for regulators. Argue in two sentences why that forces a <em>non-parametric</em> design over fine-tuning the facts into a model.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ 04 ============ -->
+  <section id="s4">
+    <div class="sec-eyebrow"><b>04</b> · The operations</div>
+    <h2>The verbs: write, manage, read, forget</h2>
+    <p>Every memory system — simple or exotic — is some implementation of four operations. Naming them lets you reason about <em>where</em> a system is sophisticated and where it is naïve.</p>
+
+    <figure class="figure">
+      <svg viewBox="0 0 720 250" width="100%" height="auto" role="img" aria-label="The write, manage, read, forget cycle around the context window">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#454C68"/></marker>
+        </defs>
+        <!-- center -->
+        <rect x="278" y="92" width="164" height="66" rx="12" fill="#171b2e"/>
+        <text x="360" y="120" text-anchor="middle" fill="#fff" font-family="Space Grotesk" font-weight="600" font-size="15">Context window</text>
+        <text x="360" y="140" text-anchor="middle" fill="#9aa2c0" font-family="JetBrains Mono" font-size="11">working memory</text>
+        <!-- nodes -->
+        <g font-family="Space Grotesk" font-size="13.5" font-weight="600">
+          <rect x="40" y="28" width="150" height="46" rx="10" fill="#fff" stroke="#eccfbb"/><text x="115" y="50" text-anchor="middle" fill="#C2410C">① WRITE</text><text x="115" y="66" text-anchor="middle" fill="#454C68" font-size="10.5" font-weight="400">encode what to store</text>
+          <rect x="530" y="28" width="150" height="46" rx="10" fill="#fff" stroke="#bfdfe6"/><text x="605" y="50" text-anchor="middle" fill="#0E7490">② MANAGE</text><text x="605" y="66" text-anchor="middle" fill="#454C68" font-size="10.5" font-weight="400">consolidate / index</text>
+          <rect x="530" y="176" width="150" height="46" rx="10" fill="#fff" stroke="#d4d2f5"/><text x="605" y="198" text-anchor="middle" fill="#4338CA">③ READ</text><text x="605" y="214" text-anchor="middle" fill="#454C68" font-size="10.5" font-weight="400">retrieve &amp; re-inject</text>
+          <rect x="40" y="176" width="150" height="46" rx="10" fill="#fff" stroke="#ecc6d2"/><text x="115" y="198" text-anchor="middle" fill="#9F1239">④ FORGET</text><text x="115" y="214" text-anchor="middle" fill="#454C68" font-size="10.5" font-weight="400">decay / invalidate</text>
+        </g>
+        <!-- arrows -->
+        <g stroke="#454C68" stroke-width="1.6" fill="none" marker-end="url(#ah)">
+          <path d="M190,51 C300,51 300,92 320,92"/>
+          <path d="M442,110 C520,80 520,60 530,55"/>
+          <path d="M605,176 C605,140 470,140 442,140"/>
+          <path d="M530,199 C420,199 300,199 300,160"/>
+          <path d="M115,176 C115,150 200,150 278,135"/>
+        </g>
+      </svg>
+      <figcaption>The four operations circulate information through the one channel the model has: the window.</figcaption>
+    </figure>
+
+    <h3>① Write (encode)</h3>
+    <p>Two decisions: <strong>what</strong> to store and <strong>when</strong>. On <em>what</em>: store raw turns (cheap, noisy) or LLM-<em>extracted</em> facts (clean, costs an extraction call). On <em>when</em>, the LangMem distinction is the one to know:</p>
+    <ul class="tight">
+      <li><strong>Hot-path writing</strong> — the agent updates memory <em>in the loop</em>, before responding. Immediate, but adds latency and tokens to every turn.</li>
+      <li><strong>Background writing</strong> — a separate process extracts and consolidates memories asynchronously after the turn (or on a schedule). No user-facing latency; this is the basis of "sleep-time" memory (§08).</li>
+    </ul>
+
+    <h3>② Manage (consolidate, index, update)</h3>
+    <p>Raw writes accumulate into noise and contradiction — the <em class="term">memory hoarding</em> problem. Management fixes this:</p>
+    <ul class="tight">
+      <li><strong>Consolidation / dedup / conflict resolution.</strong> Mem0's update step is the clearest pattern: an LLM decides, for each new fact, whether to <code>ADD</code> (new), <code>UPDATE</code> (augment), <code>DELETE</code> (contradicted), or <code>NOOP</code> (already known).</li>
+      <li><strong>Reflection / summarisation.</strong> Periodically compress many low-level memories into higher-level insights (the generative-agents move, §07).</li>
+      <li><strong>Indexing.</strong> Build the structures retrieval will use — embeddings, inverted indexes, graph edges. Often the operation surveys say is most under-built.</li>
+    </ul>
+
+    <h3>③ Read (retrieve)</h3>
+    <p>Selecting the right slice to re-inject. The methods, cheapest to richest:</p>
+    <ul class="tight">
+      <li><strong>Dense</strong> — embed query &amp; memories, return top-k by cosine similarity (vector search). Captures meaning, misses exact terms.</li>
+      <li><strong>Sparse</strong> — keyword/lexical match (BM25). Captures exact terms (IDs, error codes, column names), misses paraphrase.</li>
+      <li><strong>Hybrid + rerank</strong> — run both, fuse, then re-rank with Reciprocal Rank Fusion (RRF), Maximal Marginal Relevance (MMR, for diversity), or a cross-encoder. This is the production default.</li>
+      <li><strong>Graph traversal</strong> — follow edges from seed nodes (your filter-then-traverse).</li>
+      <li><strong>Scored retrieval</strong> — combine signals like recency, importance, relevance into one rank (generative agents, §07).</li>
+      <li><strong>Iterative / agentic retrieval</strong> — the agent retrieves, reasons, then retrieves again, walking toward the answer rather than one-shotting it.</li>
+    </ul>
+
+    <h3>④ Forget (decay, evict, invalidate)</h3>
+    <p>Forgetting is a <em>feature</em>, not a bug — it keeps memory relevant and bounded. Three flavours: <strong>time decay</strong> (down-weight or expire old items, à la MemoryBank's Ebbinghaus-style forgetting curve), <strong>eviction</strong> (drop low-value items under a budget), and — the most elegant — <strong>invalidation</strong>: when a fact changes, don't delete the old one, mark it <em>no longer valid as of date X</em>. That preserves a queryable history (Zep/Graphiti, §06) and is exactly what a regulated audit trail wants.</p>
+
+    <div class="box pit">
+      <div class="box-k"><span class="dot"></span>Pitfall · the naïve system has no "manage" and no "forget"</div>
+      <p>The most common failure is "append-only RAG over chat history": write everything, never consolidate, never forget. It bloats, contradicts itself, and retrieves stale facts with confidence. When you assess any memory product (or your own), ask first: <em>how does it consolidate, and how does it forget?</em> If the answer is "it doesn't," it is a log, not a memory.</p>
+    </div>
+  </section>
+
+  <!-- ============ 05 ============ -->
+  <section id="s5">
+    <div class="sec-eyebrow"><b>05</b> · Short-term toolkit</div>
+    <h2>Short-term / working-memory techniques</h2>
+    <p>These manage the <em>hot</em> tier — the window — over a single long-running task. For a deep-work coding agent like clicode this tier is where most of the leverage is, because the failure mode isn't "the model is dumb," it's "the context got polluted." Roughly in order of sophistication:</p>
+
+    <div class="flow">
+      <div class="step"><div class="sk">naïve</div><div class="sv">Full history — keep everything; blows the window</div></div>
+      <div class="step"><div class="sk">cheap</div><div class="sv">Sliding window / truncation — keep last N turns</div></div>
+      <div class="step"><div class="sk">better</div><div class="sv">Summary buffer — replace old turns with a running summary</div></div>
+      <div class="step"><div class="sk">strong</div><div class="sv">Compaction — re-init window from a high-fidelity summary</div></div>
+    </div>
+
+    <h3>Compaction</h3>
+    <p>The first serious lever, and what Claude Code uses. As the window nears its limit, summarise its contents and <em>start a fresh window from that summary</em>. The craft is in the selection function: Claude Code's compaction <strong>preserves architectural decisions, unresolved bugs, and implementation details, while discarding redundant tool outputs</strong>, then carries forward the few most-recently-touched files. Anthropic's tuning advice is worth stealing verbatim: <em>maximise recall first</em> (capture everything that might matter), then iterate for precision (cut the superfluous). The lightest-touch form is <strong>tool-result clearing</strong> — once a tool result is deep in history, the raw blob rarely needs to stay.</p>
+
+    <h3>Structured note-taking ("agentic memory")</h3>
+    <p>The agent writes notes to a file outside the window and reads them back later — a <code>NOTES.md</code>, a to-do list, a progress ledger. This is the cheapest possible long-term memory and it is shockingly effective: in Anthropic's "Claude plays Pokémon" demo the agent maintains tallies and maps across <em>thousands</em> of steps and resumes coherently after each context reset purely from its own notes. For clicode this is the single highest-ROI addition you don't yet have (see §09).</p>
+
+    <h3>Just-in-time retrieval &amp; progressive disclosure</h3>
+    <p>Instead of pre-loading everything, keep lightweight <em>identifiers</em> in context — file paths, queries, links — and load the actual content on demand via tools. Claude Code drops <code>CLAUDE.md</code> in up front but uses <code>glob</code>/<code>grep</code> to pull files just-in-time, sidestepping stale indexes. The metadata of the identifiers is itself signal: a file's name, folder, and timestamp tell the agent whether to open it. <em>Progressive disclosure</em> is the incremental version — reveal structure layer by layer, loading only the next needed piece.</p>
+
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Career bridge · you invented this twice</div>
+      <p>Your EUCT Excel MCP server is a <strong>progressive-disclosure</strong> engine: it returns truncated "patches" with Patch IDs, and the agent decides which to fetch in full on a second pass — fitting a 60-sheet workbook into context the way Anthropic describes fitting a large database into Claude Code. And BMG's MCP-over-graph with recursive column tracing is <strong>JIT retrieval with lightweight identifiers</strong>. In an interview, name them as such — you'll be describing 2025-frontier patterns you shipped in production before they had blog posts.</p>
+    </div>
+
+    <h3>Sub-agent architectures</h3>
+    <p>Rather than one agent holding the whole task, spawn <strong>specialised sub-agents with clean, isolated context windows</strong>. Each can burn tens of thousands of tokens exploring, but returns only a distilled 1–2K-token summary to the lead agent. The detailed search context stays quarantined; the lead stays focused on synthesis. Anthropic reports this beats single-agent setups on complex research. The trade-off: coordination overhead and the risk that the summary drops something the lead needed.</p>
+
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>Interview framing · the three long-horizon levers</div>
+      <p>Anthropic names three techniques for tasks exceeding the window — <strong>compaction, structured note-taking, sub-agents</strong> — and which to use depends on the task: compaction for conversational back-and-forth, note-taking for iterative work with clear milestones, sub-agents for parallel exploration. Being able to say "I'd reach for note-taking + sub-agents here because the work is milestone-based with verbose exploration" signals real fluency.</p>
+    </div>
+  </section>
+
+  <!-- ============ 06 ============ -->
+  <section id="s6">
+    <div class="sec-eyebrow"><b>06</b> · Long-term representations</div>
+    <h2>Long-term memory: how to represent it</h2>
+    <p>The hot-tier techniques buy you a long single session. To persist <em>across</em> sessions and scale, you need a durable representation. This is the part most connected to your graph and GNN background — and the choice of representation is the single biggest architectural decision in a memory system.</p>
+
+    <h3>(a) Flat vector store + RAG — the workhorse</h3>
+    <p>Chunk your corpus, embed each chunk, store vectors in an index, retrieve top-k by similarity, stuff into context. Simple, scalable, and the right default for large static document sets. But note the crucial distinction the field insists on:</p>
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>Term · RAG is a tool <em>for</em> memory, not memory itself</div>
+      <p>Classic RAG retrieves over a <strong>static corpus</strong>. Memory is about an <strong>evolving</strong> store that the agent writes to, consolidates, and invalidates over time. RAG is the read mechanism you might plug into a memory system; it is not, by itself, memory. Conflating the two is a common interview tell.</p>
+    </div>
+    <p><strong>The infrastructure layer</strong> here is the vector-database market: <em>pgvector</em> (Postgres extension — start here if you already have Postgres), <em>Chroma</em> (lightweight, local-first), <em>Qdrant</em>, <em>Weaviate</em>, <em>Milvus</em> (scale), <em>Pinecone</em> (managed), and <em>FAISS</em> (a library, not a server). They are largely interchangeable plumbing; the interesting decisions are upstream (what to embed, how to chunk) and downstream (how to rerank).</p>
+
+    <h3>(b) Hierarchical summary trees</h3>
+    <p>Build a tree by recursively clustering and summarising chunks (RAPTOR), so retrieval can pull either a fine detail (leaf) or a high-level gist (interior node). MemGPT's recursive summary of overflowed history is the same idea in miniature. Good when answers need varying levels of abstraction.</p>
+
+    <h3>(c) Knowledge graph — entities &amp; relations</h3>
+    <p>Represent memory as nodes (entities) and labelled edges (relations): an LLM extracts <code>(subject, relation, object)</code> triplets from text and inserts them. <strong>Mem0g</strong> does exactly this; Microsoft's <strong>GraphRAG</strong> additionally clusters the graph into thematic "communities" and pre-summarises them for global "what are the themes?" queries. Strength: multi-hop and relational reasoning ("how does column X depend on source Y three transforms back?"). Cost: extraction is lossy and LLM-dependent. <em>This is your home turf — it is the same object as the BMG DAG.</em></p>
+
+    <h3>(d) Temporal / bi-temporal knowledge graph — the state of the art</h3>
+    <p><strong>Zep</strong>, built on the open-source <strong>Graphiti</strong> engine, is the system to know here. Its signature is the <em class="term">bi-temporal model</em>: every edge records both <strong>when the fact was true in the world</strong> (<code>t_valid</code> / <code>t_invalid</code>) and <strong>when the system learned it</strong> (<code>t_created</code> / <code>t_expired</code>). When new information contradicts an old fact, Graphiti <em>invalidates</em> the old edge (closes its validity window) rather than deleting it. Three consequences fall out for free:</p>
+    <ul class="tight">
+      <li><strong>Contradiction-free answers</strong> — the agent reasons over current state, never forced to choose between a stale and a fresh fact.</li>
+      <li><strong>Point-in-time queries</strong> — "what was the plan in January?" is answerable, not just "what is it now?"</li>
+      <li><strong>Auditable provenance</strong> — every fact traces back to the source episode that produced it.</li>
+    </ul>
+    <p>Zep organises memory in three tiers — episodic raw messages, extracted semantic entities/facts with temporal validity, and community summaries — and retrieves with a hybrid of cosine + BM25 + graph traversal plus reranking. It reports beating MemGPT on the DMR benchmark (94.8% vs 93.4%) and gains up to 18.5% on the harder LongMemEval. For a finance audit context, "memory with bi-temporal provenance you can replay to any date" is an extremely strong story.</p>
+
+    <h3>(e) Self-organising note network — A-MEM (Zettelkasten)</h3>
+    <p><strong>A-MEM</strong> applies the Zettelkasten method: each memory is an <em>atomic note</em> with structured attributes (content, timestamp, LLM-generated keywords, tags, a contextual description, an embedding, and links). When a new note is added, the system autonomously <strong>generates links</strong> to related historical notes and may <strong>evolve</strong> those older notes — updating their context as new knowledge arrives. The structure isn't fixed in advance; it grows organically, agent-driven. Conceptually it's a knowledge graph that builds and rewires itself.</p>
+
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Representation</th><th>Strength</th><th>Weakness</th><th>Reach for it when…</th></tr></thead>
+      <tbody>
+        <tr><td><b>Flat vectors / RAG</b></td><td>Simple, scalable, cheap</td><td>No relations; static; no temporality</td><td>Large static corpus, single-hop lookups</td></tr>
+        <tr><td><b>Summary tree</b></td><td>Multi-resolution answers</td><td>Summaries can drift/lose detail</td><td>Answers need both gist &amp; detail</td></tr>
+        <tr><td><b>Knowledge graph</b></td><td>Multi-hop, relational</td><td>Lossy LLM extraction; build cost</td><td>Entities &amp; relations dominate (lineage!)</td></tr>
+        <tr><td><b>Bi-temporal graph</b></td><td>Handles change; point-in-time; provenance</td><td>Most complex; infra-heavy</td><td>Facts change over time; audit/governance</td></tr>
+        <tr><td><b>Self-organising notes</b></td><td>Adaptive structure; emergent links</td><td>Newer; depends on LLM quality</td><td>Open-ended knowledge work, evolving topics</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="kicker">Reality check</p>
+    <p>Production systems are almost always <strong>hybrid</strong>: vectors for fuzzy recall, BM25 for exact identifiers, a graph for relations, all behind one retrieval interface. "Pick one representation" is a teaching simplification; "compose them behind a clean retrieval API" is the job.</p>
+  </section>
+
+  <!-- ============ 07 ============ -->
+  <section id="s7">
+    <div class="sec-eyebrow"><b>07</b> · The landscape</div>
+    <h2>The systems landscape — named tools</h2>
+    <p>Now the concrete frameworks, each with its philosophy. The most important conceptual split is <strong>memory layer</strong> (a bolt-on you add to any agent) vs <strong>agent runtime</strong> (your agent lives inside it) vs <strong>primitives</strong> (you wire the pieces yourself).</p>
+
+    <h3>MemGPT / Letta — "the LLM as an operating system"</h3>
+    <p>The foundational systems paper (Packer et&nbsp;al., 2023). The analogy: treat the context window as <strong>RAM</strong> and external stores as <strong>disk</strong>, and give the model OS-style tools to <em>page</em> information between them. Letta (the framework MemGPT became) makes memory tiers explicit: <strong>core memory</strong> (small, always-in-window, self-editable blocks — e.g. a persona and key user facts), <strong>recall memory</strong> (searchable conversation history), and <strong>archival memory</strong> (arbitrary long-term store). The defining move is <strong>self-editing memory</strong>: the agent calls tools like <code>memory_insert</code>/<code>memory_replace</code> to rewrite its own memory in the normal loop, and when the window fills it auto-compacts into a recursive summary. Letta's philosophy is <em>persistence by default</em> — you have to actively avoid remembering. Its newer "Letta Code" pushes this into coding agents with git-backed memory, skills, and subagents — a direct cousin of clicode.</p>
+
+    <h3>Mem0 — "the memory layer"</h3>
+    <p>Framework-agnostic: you bolt it onto LangChain, CrewAI, a custom loop, anything. Two phases — <strong>extraction</strong> (an LLM pulls salient facts from the conversation) and <strong>update</strong> (the <code>ADD/UPDATE/DELETE/NOOP</code> decision against existing memory). A graph variant, <strong>Mem0g</strong>, stores entity/relation triplets for relational queries. Mem0 reports strong LOCOMO numbers — ~26% relative gain over OpenAI's memory on an LLM-as-judge metric, with large latency and token savings versus full-context — because it sends compact extracted memories instead of whole histories.</p>
+
+    <h3>Zep / Graphiti — "temporal memory at enterprise scale"</h3>
+    <p>Covered in §06(d). Position it as: the choice when <strong>facts change over time and you need provenance and governance</strong> — bi-temporal graph, sub-200ms retrieval, SOC2/HIPAA posture. Graphiti is the open-source engine you can self-host on Neo4j/FalkorDB; Zep is the managed platform on top.</p>
+
+    <h3>LangMem / LangGraph — "the primitives"</h3>
+    <p>Not a runtime — a toolkit. LangGraph cleanly separates two storage roles you must never conflate: the <strong>checkpointer</strong> (in-thread conversation/session state) and the <strong>BaseStore</strong> (cross-thread, user-scoped long-term facts). On top, the <strong>LangMem</strong> SDK supplies the three memory types (semantic/episodic/procedural) and the two write mechanisms (hot-path tools vs background managers), with automatic consolidation and <strong>namespacing</strong> (every memory is scoped, typically by <code>user_id</code>, to prevent cross-user leakage). Note: its background-manager path is batch-oriented (high p95 latency) — use it asynchronously, not on the hot path.</p>
+
+    <h3>The Anthropic / Claude Code stack — the one clicode mirrors</h3>
+    <p>Because clicode is "Claude Code lite," this stack is your reference design. It has distinct, well-separated layers:</p>
+    <ul class="tight">
+      <li><strong><code>CLAUDE.md</code></strong> — the explicit, human-written instruction layer (procedural + semantic): build commands, conventions, architecture, "always do X." Loaded at session start, hierarchically (root files in full, subdirectory files on demand), supports <code>@imports</code>. Treated as <em>context, not enforced policy</em> — phrasing matters, and emphasis markers (<code>IMPORTANT</code>, <code>YOU MUST</code>) measurably improve adherence. Keep it tight (teams target &lt;200, even ~60 lines) because every line is reloaded every turn.</li>
+      <li><strong>Auto memory</strong> — the <em>learned</em>-pattern layer. Claude writes back durable, non-obvious things it discovers (an undocumented command, an environment-specific error fix) to a machine-local <code>MEMORY.md</code>, so the next session starts already knowing them. This is the agent becoming a <em>contributor</em> to its memory, not just a consumer.</li>
+      <li><strong>Project rules</strong> (<code>.claude/rules/*.md</code> with <code>paths:</code> globs) — path-scoped instructions that load <em>only</em> when relevant files are touched. Pure just-in-time procedural memory.</li>
+      <li><strong>Skills</strong> (<code>SKILL.md</code>) — packaged repeatable methodology, invoked by name or auto-loaded when relevant. Your BMG skill files, exactly.</li>
+      <li><strong>Subagents</strong> — isolated context windows that return summaries; can carry their own scoped auto memory.</li>
+      <li><strong>Compaction</strong> — automatic when the window fills (older tool outputs cleared first, then the conversation summarised).</li>
+      <li><strong>The Memory Tool (API)</strong> — for building this into your own agents: a file-based cross-session memory (<code>type: "memory_20250818"</code>) exposing create/read/<code>str_replace</code>/delete-style operations over a memory directory. This is the literal primitive you'd wire into clicode.</li>
+    </ul>
+
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>System</th><th>Philosophy</th><th>Representation</th><th>Reach for it when…</th></tr></thead>
+      <tbody>
+        <tr><td><b>Letta / MemGPT</b> <span class="pill sig">runtime</span></td><td>Agent lives in it; self-editing OS memory</td><td>Tiered blocks + recall + archival</td><td>You want persistence &amp; self-management as defaults</td></tr>
+        <tr><td><b>Mem0</b> <span class="pill hot">layer</span></td><td>Bolt-on memory for any framework</td><td>Extracted facts (+ optional graph)</td><td>You have an agent and just need a memory API</td></tr>
+        <tr><td><b>Zep / Graphiti</b> <span class="pill cold">layer</span></td><td>Temporal, governed, enterprise</td><td>Bi-temporal knowledge graph</td><td>Facts change; you need provenance/audit/scale</td></tr>
+        <tr><td><b>LangMem / LangGraph</b> <span class="pill sig">primitives</span></td><td>Compose it yourself</td><td>KV + vector via BaseStore</td><td>You want full control inside LangGraph</td></tr>
+        <tr><td><b>Anthropic stack</b> <span class="pill sig">primitives</span></td><td>File-based, context-engineering native</td><td>Markdown files + memory tool</td><td>You're building on Claude (clicode!)</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="box check">
+      <div class="box-k"><span class="dot"></span>Comprehension check</div>
+      <ol>
+        <li>Explain "LLM as an operating system" to a colleague in two sentences, mapping RAM and disk explicitly.</li>
+        <li>Mem0 vs Zep: a teammate wants to track a customer whose address, plan, and preferences <em>change over months</em> and must show what was true at any past date. Which do you pick, and which single feature decides it?</li>
+        <li>Why must you keep LangGraph's checkpointer and BaseStore separate? What breaks if you put user facts in the checkpointer?</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ 08 ============ -->
+  <section id="s8">
+    <div class="sec-eyebrow"><b>08</b> · The frontier</div>
+    <h2>Where memory is headed (2026 and beyond)</h2>
+    <p>You asked specifically where this is going. The research front in late-2025/2026 clusters into six directions — each is a strong "what's next" talking point.</p>
+
+    <h3>1 · Sleep-time / background consolidation</h3>
+    <p>Move memory formation off the critical path: while the agent is idle, a background process reviews recent activity, consolidates, reflects, and reorganises — like sleep consolidating a day's experiences. Letta formalises this as <em>sleep-time compute</em> with dedicated sleep-time agents; Anthropic has previewed background self-improvement in a similar spirit (early reports of agents reviewing past sessions to extract patterns). The win is non-blocking memory and steadily improving recall without per-turn latency.</p>
+
+    <h3>2 · Learning <em>what</em> to remember (memory + RL)</h3>
+    <p>Today's write/forget policies are mostly hand-tuned heuristics. The frontier learns them. A wave of work — <em>Mem-α</em>, <em>MemAgent</em>, <em>MEM1</em> — treats memory construction as a <strong>reinforcement-learning policy</strong>: reward the agent for remembering what later proves useful and discarding what doesn't. Memory stops being a fixed pipeline and becomes a trained skill. (This is a natural bridge for someone with an optimisation/estimation background — it's a policy-learning problem over a memory state.)</p>
+
+    <h3>3 · Episodic memory as "the missing piece"</h3>
+    <p>A prominent position paper argues that <strong>episodic memory</strong> — concrete, replayable past experiences — is the under-served tier and the key to genuine long-horizon competence. Most systems over-invest in semantic facts and under-invest in "remember the <em>episode</em> where this exact situation arose and what happened." Expect richer episodic stores and experience-replay-style retrieval. (Directly relevant to clicode's gap — §09.)</p>
+
+    <h3>4 · Self-evolving, experience-driven agents</h3>
+    <p>Procedural memory that <em>rewrites itself</em>: agents that distil successful trajectories into reusable skills and improve from their own "lived experience" (the Voyager skill-library lineage; "Skill-RL"-style work; Letta's explicit thesis of agents that learn from work). The endpoint is an agent whose competence compounds with use rather than resetting each session.</p>
+
+    <h3>5 · Multi-agent shared memory</h3>
+    <p>As systems become teams of agents, memory becomes <em>shared infrastructure</em> with the attendant hard problems: consistency, who-can-read-what <strong>access control</strong>, and knowledge transfer between agents (G-Memory, LEGOMem, collaborative-memory work). Memory turns into a governed, multi-tenant data system — squarely an enterprise/finance concern.</p>
+
+    <h3>6 · Governance, safety, and evaluation maturing</h3>
+    <p>Three threads worth tracking, all enterprise-relevant: <strong>memory-injection attacks</strong> (adversaries planting false memories — a real attack surface), <strong>provenance &amp; right-to-be-forgotten</strong> (auditable, expungeable memory — the bi-temporal/non-parametric argument again), and <strong>better evaluation</strong>. On evaluation specifically:</p>
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>Term · the memory benchmarks (and their critique)</div>
+      <p><strong>LoCoMo</strong> — very-long-term conversational memory (up to ~35 sessions, 300+ turns). <strong>LongMemEval</strong> — long-term interactive memory with hard temporal reasoning, closer to enterprise use. <strong>DMR</strong> (Deep Memory Retrieval) — the older MemGPT-era metric. <strong>MemBench</strong> — broader coverage. The sharp critique from the 2026 surveys: classic IR metrics (recall@k, nDCG) tell you whether the right item was <em>retrieved</em>, but say nothing about whether the agent <em>used it correctly</em>, or about staleness, contradiction, forgetting quality, and governance. Memory evaluation must judge <strong>decision quality, not just retrieval quality.</strong> Quoting this distinction is a strong signal of depth.</p>
+    </div>
+
+    <p class="kicker">The meta-trend</p>
+    <p>Two forces pull in opposite directions. Bigger, cheaper context windows reduce <em>some</em> need for retrieval. But context rot, cost, governance, and cross-session persistence mean the need never vanishes — it moves. As models get smarter they need <em>less</em> prescriptive memory engineering and can manage more of their own context. Anthropic's own bet: "do the simplest thing that works" — start minimal, add memory machinery only where a real failure mode demands it.</p>
+  </section>
+
+  <!-- ============ 09 ============ -->
+  <section id="s9">
+    <div class="sec-eyebrow"><b>09</b> · Application</div>
+    <h2>A concrete memory blueprint for clicode</h2>
+    <p>Now the payoff. clicode is a general-purpose, deep-work coding agent over the BMG estate. Map its needs to the four tiers, see what you have, and build the missing piece. The design principle throughout is Anthropic's: <em>smallest set of high-signal tokens hot; everything else retrievable; add machinery only where a failure mode demands it.</em></p>
+
+    <div class="hero-grid" style="grid-template-columns:1fr 1fr; gap:30px; align-items:start; margin:24px 0">
+      <div>
+        <p class="kicker" style="margin-top:0">What clicode already has</p>
+        <ul class="tight">
+          <li><span class="pill cold">semantic</span> the 600-node lineage graph (NetworkX/JSON) behind an MCP server</li>
+          <li><span class="pill sig">read</span> recursive filter-then-traverse retrieval (graph walk)</li>
+          <li><span class="pill hot">procedural</span> task-specific <code>SKILL.md</code> files</li>
+          <li><span class="pill hot">working</span> batched, incremental lineage generation (hand-rolled compaction)</li>
+        </ul>
+      </div>
+      <div>
+        <p class="kicker" style="margin-top:0">What it's missing</p>
+        <ul class="tight">
+          <li><span class="pill" style="background:var(--warn-tint);color:var(--warn)">episodic</span> a record of <em>what was tried</em> per table/column — which parses failed, which fixes worked, which naming mismatches were resolved</li>
+          <li><span class="pill" style="background:var(--warn-tint);color:var(--warn)">manage</span> consolidation &amp; <em>invalidation</em> when underlying SQL/Ab&nbsp;Initio changes</li>
+          <li><span class="pill" style="background:var(--warn-tint);color:var(--warn)">working</span> a principled compaction prompt (vs ad-hoc batching)</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="figure">
+      <div class="stack" style="max-width:560px;margin:0 auto">
+        <div class="tier t-work"><div class="t-k">Working · hot</div><div class="t-v">Window + tuned compaction + JIT graph retrieval · subagents for deep column dives</div></div>
+        <div class="tier t-epi"><div class="t-k">Episodic — the new tier</div><div class="t-v">Append-only run log: task → trace → outcome (success/fail + fix)</div></div>
+        <div class="tier t-sem"><div class="t-k">Semantic</div><div class="t-v">The lineage graph (have) + a <code>CONVENTIONS.md</code> facts file</div></div>
+        <div class="tier t-proc"><div class="t-k">Procedural</div><div class="t-v"><code>SKILL.md</code> playbooks (have) + auto-learned fixes promoted from episodic</div></div>
+        <div class="tier t-cold"><div class="t-k">Cold</div><div class="t-v">Versioned graph snapshots + full session transcripts, persisted to disk</div></div>
+      </div>
+      <figcaption>clicode's target architecture — the same thermal stack, instantiated with your real components.</figcaption>
+    </div>
+
+    <h3>The build ladder — simplest that works, then up</h3>
+    <p>Don't build the whole thing at once. Climb only as far as a failure mode forces you.</p>
+
+    <div class="lvl">
+      <div class="ln">1</div>
+      <div class="lc"><div class="lt">Files only — <code>CLAUDE.md</code> + <code>NOTES.md</code></div><div class="ld">A <code>CLAUDE.md</code>-style file with build/run commands, naming conventions, and the BMG generation discipline (emphasis-marked, &lt;200 lines). A per-run <code>NOTES.md</code> the agent updates as it works. This alone gives cross-session continuity and is the single highest ROI move. Cost: an afternoon.</div></div>
+      <div class="ln">2</div>
+      <div class="lc"><div class="lt">+ file-based memory tool & skills</div><div class="ld">Wire the Anthropic Memory Tool (<code>memory_20250818</code>) so the agent reads/writes its own memory files across sessions; formalise your skills as loadable <code>SKILL.md</code>. Add path-scoped rules so column-/generation-specific instructions load only when relevant. Now the agent <em>contributes</em> to memory, not just consumes.</div></div>
+      <div class="ln">3</div>
+      <div class="lc"><div class="lt">+ episodic log with recall</div><div class="ld">An append-only JSONL: each entry is <code>{table, column, attempt, outcome, fix, ts}</code>. Embed the entry text into a small vector index (pgvector/Chroma). Before tracing a column, retrieve similar past episodes (recency + relevance) so clicode reuses a known fix instead of re-deriving it. This closes the missing tier.</div></div>
+      <div class="ln">4</div>
+      <div class="lc"><div class="lt">+ graph semantic memory via MCP <span class="pill cold" style="margin-left:6px">you have this</span></div><div class="ld">Your existing strength. Keep the graph as the relational backbone; expose it through MCP for JIT, recursive retrieval. Add hybrid retrieval — BM25 over column/file names alongside the graph walk — so exact identifiers (which dominate lineage) never get missed by fuzzy search.</div></div>
+      <div class="ln">5</div>
+      <div class="lc"><div class="lt">+ invalidation, consolidation, sub-agents</div><div class="ld">Borrow Graphiti's bi-temporal idea: when an SQL/Ab&nbsp;Initio file changes, <em>invalidate</em> (don't delete) the lineage facts derived from it and flag them for re-derivation — preserving an audit trail, perfect for WF governance. Run consolidation in the background (sleep-time): promote repeatedly-successful episodic fixes into procedural skills. Push verbose column dives to subagents that return distilled lineage summaries.</div></div>
+    </div>
+
+    <h4>Write &amp; retrieval policy (the two decisions that matter)</h4>
+    <pre><span class="c"># WRITE — background (sleep-time), not hot path</span>
+on_task_complete(column_lineage):
+    episodic.append({<span class="s">"table"</span>, <span class="s">"column"</span>, <span class="s">"trace"</span>, <span class="s">"outcome"</span>, <span class="s">"fix"</span>, ts})
+    <span class="k">if</span> outcome == <span class="s">"success"</span> <span class="k">and</span> seen_n_times(fix) &gt;= 3:
+        procedural.promote(fix)            <span class="c"># episodic → reusable skill</span>
+    semantic.graph.upsert(derived_lineage_edges)
+
+<span class="c"># RETRIEVE — hybrid, identifier-aware</span>
+on_new_column(q):
+    facts  = graph.traverse(seed=q.column)         <span class="c"># relations (have)</span>
+    exact  = bm25.search(q.column_or_file_name)     <span class="c"># exact IDs — don't lose these</span>
+    priors = episodic.search(embed(q), rank=recency+relevance)  <span class="c"># reuse past fixes</span>
+    <span class="k">return</span> rerank(facts + exact + priors)[:budget]   <span class="c"># keep it small (context rot!)</span></pre>
+
+    <div class="box pit">
+      <div class="box-k"><span class="dot"></span>Pitfall · don't over-retrieve into clicode</div>
+      <p>The instinct on a 7.6M-token estate is to pull <em>more</em> context. Context rot says the opposite: pull the <em>smallest high-signal</em> set. Your batched, filter-then-traverse approach already does this — resist the urge to widen the window "to be safe." Tune the compaction prompt to preserve <em>derived lineage facts and unresolved mismatches</em>, and clear raw SQL blobs once parsed.</p>
+    </div>
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Career bridge · the one-line system summary</div>
+      <p>"clicode is a context-engineered coding agent with a four-tier memory: a window managed by tuned compaction and JIT retrieval; a self-organising semantic graph of column-level lineage exposed over MCP; procedural skills; and an episodic run-log that lets it reuse fixes and invalidate stale lineage when the source code changes — preserving an audit trail for model governance." That sentence is a job-offer sentence.</p>
+    </div>
+  </section>
+
+  <!-- ============ 10 ============ -->
+  <section id="s10">
+    <div class="sec-eyebrow"><b>10</b> · Interview prep</div>
+    <h2>Interview preparation</h2>
+
+    <h3>Questions you should expect — and crisp answers</h3>
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>Likely questions</div>
+      <ul>
+        <li><strong>What is the difference between RAG and agent memory?</strong> → RAG retrieves over a static corpus; memory is an evolving store the agent writes, consolidates, and invalidates. RAG is a read mechanism you might use inside a memory system.</li>
+        <li><strong>Why not just use a 1M-token context window?</strong> → context rot + lost-in-the-middle + quadratic attention budget + cost/latency + no cross-session persistence. (§02)</li>
+        <li><strong>Walk me through the types of agent memory.</strong> → working/episodic/semantic/procedural; plus parametric vs non-parametric and why deployed systems favour non-parametric (inspectable, editable, governable).</li>
+        <li><strong>How do you handle facts that change over time?</strong> → bi-temporal model: invalidate, don't delete; enables point-in-time queries and provenance (Zep/Graphiti).</li>
+        <li><strong>Design memory for a coding agent over a 50×-context codebase.</strong> → this is literally clicode; answer with §09's four tiers and the build ladder.</li>
+        <li><strong>Hot-path vs background memory writes — trade-offs?</strong> → latency vs immediacy; sleep-time consolidation as the resolution.</li>
+        <li><strong>How do you stop a memory system from bloating/contradicting itself?</strong> → consolidation (ADD/UPDATE/DELETE/NOOP), reflection, decay/eviction, invalidation.</li>
+        <li><strong>How would you evaluate it?</strong> → LoCoMo/LongMemEval, but stress that IR metrics ≠ decision quality; you must measure whether the agent <em>acted</em> correctly on the memory.</li>
+      </ul>
+    </div>
+
+    <h3>Questions <em>you</em> should ask them (these signal seniority)</h3>
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>Ask the interviewer</div>
+      <ul>
+        <li>"What's your <em>forgetting</em> and consolidation strategy — or is memory currently append-only?" (Exposes whether they have real memory or just a log.)</li>
+        <li>"How do you handle stale facts when the underlying source changes — delete, or invalidate with provenance?"</li>
+        <li>"Where's the boundary between what you keep hot in-window versus retrieve — and how did you pick the effective context budget?"</li>
+        <li>"Do you write memory on the hot path or in the background? What's the latency budget?"</li>
+        <li>"How do you evaluate memory quality beyond retrieval recall — do you measure downstream decision quality?"</li>
+        <li>"For multi-tenant/regulated data, how is memory scoped and access-controlled, and can it be expunged on request?"</li>
+        <li>"Are you betting on longer context windows reducing the need for retrieval, or on richer memory? Why?"</li>
+      </ul>
+    </div>
+
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Your three stories, pre-mapped to the vocabulary</div>
+      <p><strong>BMG</strong> → "non-parametric semantic memory at scale: a 600-node lineage graph over an estate 50× the context window, with JIT recursive retrieval via MCP and hand-rolled compaction." <strong>EUCT</strong> → "progressive-disclosure context engineering: a custom Excel MCP server that truncates and indexes sheet patches so a 60-sheet workbook fits the attention budget." <strong>Deposits → Dremio</strong> → "agentic conversion with a closed-loop validator." Each is a frontier pattern you shipped; the only new thing this brief gives you is the <em>name</em>.</p>
+    </div>
+  </section>
+
+  <!-- ============ 11 ============ -->
+  <section id="s11">
+    <div class="sec-eyebrow"><b>11</b> · Going further</div>
+    <h2>Neighbouring topics to learn next</h2>
+    <ul>
+      <li><strong>CoALA</strong> (Cognitive Architectures for Language Agents) — the academic frame behind the memory taxonomy; read it once for the mental model.</li>
+      <li><strong>Reflexion</strong> (Shinn et&nbsp;al.) — verbal self-critique stored as episodic memory to improve on the next attempt; the narrow, failure-focused cousin of reflection.</li>
+      <li><strong>Voyager</strong> — a Minecraft agent that grows a <em>skill library</em> (procedural memory) over time; the canonical "agent that learns skills" paper.</li>
+      <li><strong>RAPTOR</strong> &amp; <strong>HippoRAG</strong> — hierarchical-tree retrieval, and a neurobiologically-inspired retriever using personalised PageRank over a knowledge graph (hippocampal indexing analogy). Both sharpen the retrieval side.</li>
+      <li><strong>GraphRAG</strong> (Microsoft) — graph + community summarisation for global "what are the themes" queries; pairs naturally with your lineage-graph instincts.</li>
+      <li><strong>Embeddings &amp; reranking internals</strong> — bi-encoders vs cross-encoders, RRF, MMR; the machinery under "hybrid retrieval."</li>
+      <li><strong>Memory + RL</strong> (Mem-α, MemAgent, MEM1) — closest to your optimisation/estimation background; memory construction as a learned policy.</li>
+      <li><strong>GNNs for memory</strong> — your DGCNN/graph thread connects here: graph-structured memory and message-passing retrieval are an active intersection, and a natural portfolio-project angle.</li>
+      <li><strong>The MCP spec</strong> — since clicode and your WF work lean on it, knowing MCP's design (stateless servers, tool contracts, the shared-context-store discussions) deepens the systems story.</li>
+    </ul>
+  </section>
+
+  <!-- ============ SOURCES ============ -->
+  <div class="part">
+    <div class="pk">Concrete Portable Implementations</div>
+    <h2>Two implementations you can run anywhere</h2>
+    <p class="part-lede">Everything up to here is the field and the theory. The next three sections are buildable, firewall-proof recipes you can stand up with no approved package and no cloud: the portable <strong>markdown</strong> system, the <strong>SQLite engine</strong> that upgrades it without giving up that portability, and exactly how the agent <strong>calls</strong> either one — plain tool calls versus an MCP server.</p>
+  </div>
+
+  <!-- ============ 12 ============ -->
+  <section id="s12">
+    <div class="sec-eyebrow"><b>12</b> · Build spec</div>
+    <h2>The markdown-file memory system: documents, prompts &amp; tools</h2>
+    <p>You asked the right question: <strong>the tool description is everything.</strong> A markdown-file memory system only works if the prompt that wraps it makes the model <em>reflexively</em> read before acting and write before forgetting. This section is the buildable spec — the documents and how they differ, the exact write/edit/retrieve mechanics, links to the real verbatim prompts (Anthropic's and the open-source ones), and original, copy-pasteable prompts tuned for clicode/BMG.</p>
+
+    <h3>12.1 · To-do list vs progress checker vs notes — the precise distinction</h3>
+    <p>These three are constantly conflated. They answer different questions and point in different temporal directions. Get this right and the whole system clarifies.</p>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Document</th><th>Answers</th><th>Direction</th><th>Structure</th><th>Updated</th></tr></thead>
+      <tbody>
+        <tr><td><b>To-do / checklist</b></td><td>"What must happen, and where am I in the sequence?"</td><td>Forward-looking</td><td><b>Itemized</b>: discrete tasks, each with a status (pending → in&nbsp;progress → done)</td><td>On every item transition</td></tr>
+        <tr><td><b>Progress checker / log</b></td><td>"What has happened, and where do things stand now?"</td><td>Backward / narrative</td><td><b>Prose</b>: dated entries — done, decisions, blockers, next action</td><td>End of each work unit / session</td></tr>
+        <tr><td><b>Notes / scratchpad</b></td><td>"What did I observe or figure out?"</td><td>Present</td><td><b>Free-form</b>: discovered facts, conventions, gotchas</td><td>Ad hoc, as discovered</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>The crisp way to hold it: <strong>the to-do is the skeleton, the progress log is the diary.</strong> The checklist is a <em>structured</em> definition of scope and "done"; the progress log is an <em>unstructured</em> narrative a fresh agent reads to reconstruct context in seconds. Notes are the working memory of facts that don't fit either.</p>
+
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>The second axis: in-session vs cross-session</div>
+      <p>A to-do list comes in two forms. <strong>In-session (ephemeral):</strong> Claude Code's <code>TodoWrite</code> — a checklist that lives <em>in the context window</em>, gone on reset/compaction; its job is anti-forgetting <em>within</em> a long task (every update returns a reminder nudging the next item). <strong>Cross-session (persistent):</strong> a file on disk — Anthropic's harness uses a <code>feature_list.json</code> / <code>tests.json</code> checklist and a <code>claude-progress.txt</code> log; Claude Code's newer <code>Task</code> tools (<code>TaskCreate/Update/Get/List</code>) persist to disk with dependencies and hierarchy. The progress log is <em>always</em> cross-session by design — it exists precisely to survive the reset.</p>
+    </div>
+
+    <h3>12.2 · The canonical file set, mapped to the four memory tiers</h3>
+    <p>Two reference designs dominate. <strong>Anthropic's long-running-agent harness</strong> (Nov 2025): an <em>initializer</em> session writes <code>init.sh</code> (bootstrap), a feature checklist in <strong>JSON</strong>, a <code>claude-progress.txt</code> log, and an initial git commit; every later session reads those, does <em>one</em> feature, then updates the log and commits. <strong>Cline's "Memory Bank"</strong>: a hierarchy of markdown files that an agent who "resets between sessions" must read in full at the start of every task. Synthesised and mapped to the tiers from §03:</p>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>File</th><th>Memory tier</th><th>Holds</th><th>Update frequency</th></tr></thead>
+      <tbody>
+        <tr><td><code>projectbrief.md</code> / <code>productContext.md</code></td><td><span class="pill cold">semantic</span></td><td>Why the project exists, scope, goals — the source of truth</td><td>Rarely (at milestones)</td></tr>
+        <tr><td><code>systemPatterns.md</code> / <code>techContext.md</code> / <code>conventions.md</code></td><td><span class="pill cold">semantic</span></td><td>Architecture, stack, constraints, naming rules, known mismatches</td><td>When a durable fact is learned</td></tr>
+        <tr><td><code>activeContext.md</code></td><td><span class="pill hot">working</span></td><td>Current focus, recent changes, immediate next steps — the most-edited file</td><td>Constantly</td></tr>
+        <tr><td><code>progress.md</code> / <code>claude-progress.txt</code></td><td>progress log</td><td>What works, what's left, status, blockers, next action</td><td>End of each unit/session</td></tr>
+        <tr><td><code>feature_list.json</code> / <code>checklist.json</code></td><td>to-do / scope</td><td>Every feature/column with a pass/fail status</td><td>One field flip per item</td></tr>
+        <tr><td><code>.clinerules</code> / <code>skills/*.md</code></td><td><span style="background:var(--hot-tint);color:var(--hot)" class="pill">procedural</span></td><td>Learned patterns, reusable playbooks ("the learning journal")</td><td>When a pattern is validated</td></tr>
+        <tr><td><code>episodic_log.jsonl</code></td><td><span style="background:var(--signal-tint);color:var(--signal)" class="pill">episodic</span></td><td>Append-only record of attempts → outcomes → fixes</td><td>After every attempt</td></tr>
+        <tr><td><code>init.sh</code></td><td><span style="background:var(--hot-tint);color:var(--hot)" class="pill">procedural</span></td><td>Bootstrap: how to start/verify the environment</td><td>Rarely</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>clicode's recommended file set</div>
+      <p><code>/memory/progress.md</code> (log) · <code>/memory/lineage_checklist.json</code> (one entry per output column, status + verified) · <code>/memory/conventions.md</code> (naming rules, the BMG table/DB-name mismatches, parse gotchas) · <code>/memory/episodic_log.jsonl</code> (attempt→outcome→fix) · <code>/memory/skills/*.md</code> (promoted reusable fixes) · plus your existing graph + MCP for semantic structure. Note the deliberate split: <strong>checklist in JSON</strong> (the model is far less likely to corrupt structured JSON than prose), everything narrative in <strong>Markdown</strong>, episodic in <strong>append-only JSONL</strong>.</p>
+    </div>
+
+    <h3>12.3 · How files get written and updated — it's a tool call, not a separate function</h3>
+    <p>This is the crux of your question. The model does not call a hidden "diff engine." <strong>Updating a memory file is itself a tool call that the model emits</strong>, chosen because the system prompt and the tool description told it to. Your client-side handler then executes that call against the real file. Anthropic's Memory Tool (<code>type: "memory_20250818"</code>) defines six commands — and the <em>edit</em> primitive is <code>str_replace</code>:</p>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Command</th><th>What it does</th><th>Role</th></tr></thead>
+      <tbody>
+        <tr><td><code>view</code></td><td>List a directory, or read a file with line numbers (optional range)</td><td>Read / retrieve</td></tr>
+        <tr><td><code>create</code></td><td>Create a new file (errors if it already exists)</td><td>Write (new)</td></tr>
+        <tr><td><code>str_replace</code></td><td>Find an <b>exact, unique</b> snippet and swap it for new text</td><td><b>Edit — the surgical "diff"</b></td></tr>
+        <tr><td><code>insert</code></td><td>Insert text after a given line number</td><td>Edit (add)</td></tr>
+        <tr><td><code>delete</code></td><td>Remove a file or directory</td><td>Forget</td></tr>
+        <tr><td><code>rename</code></td><td>Move or rename a file/directory</td><td>Reorganise</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>So "how does the LLM apply something like a git diff and delete a few lines and add a few lines?" — exactly via <code>str_replace</code>: the model emits the <em>old</em> text and the <em>new</em> text, and your handler performs the in-place replacement. The model is deciding what to change (prompt-driven); your code only executes. Two consequences to design around:</p>
+    <ul class="tight">
+      <li><strong>Verbatim-unique constraint.</strong> <code>str_replace</code> only works if <code>old_str</code> appears <em>exactly once</em>. If it's ambiguous, the model must include more surrounding context. (This is the same constraint as a code editor's find-and-replace — and it's why models sometimes re-read a file before editing.)</li>
+      <li><strong>Edit-in-place over rewrite.</strong> Prompt the model to prefer <code>str_replace</code> over rewriting whole files; full rewrites waste tokens and risk dropping content. For the structured checklist, restrict edits to a single field.</li>
+    </ul>
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>Don't confuse two different "diffs"</div>
+      <p><code>str_replace</code> edits the <em>memory file</em>. Separately, Anthropic's harness has each session <strong>commit to git</strong> — that's a <em>workspace</em> snapshot enabling rollback/recovery of code, not a memory edit. Use both: <code>str_replace</code> for surgical memory updates; git commits for "revert the last hour of code." They're complementary recovery mechanisms.</p>
+    </div>
+
+    <h3>12.4 · The prompts — what actually triggers the writes</h3>
+    <p>The model writes to memory for two reasons working together: (a) a <strong>system-prompt protocol</strong> that mandates the read/write discipline, and (b) <strong>tool descriptions</strong> persuasive enough that the model reaches for them. Here's where the real verbatim text lives, plus original versions for clicode.</p>
+
+    <h4>What Anthropic actually injects (verbatim — follow the links)</h4>
+    <ul class="tight">
+      <li><strong>The memory-tool system prompt.</strong> When the Memory Tool is enabled, Anthropic auto-injects a short protocol whose first directive is, essentially, <em>always view your memory directory before doing anything else</em>, followed by a "record status / progress as you go" step and an explicit <em>assume interruption: anything not in memory is lost</em> warning. Exact text on the <a class="inl" href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">Memory tool docs page</a> (§ Prompting guidance).</li>
+      <li><strong>Claude Code's tool descriptions, verbatim.</strong> The community repo <a class="inl" href="https://github.com/Piebald-AI/claude-code-system-prompts">Piebald-AI/claude-code-system-prompts</a> mirrors all of Claude Code's system prompts and 27 tool descriptions per version — including the full <code>TodoWrite</code> description (~2,000 tokens), the compaction prompt, and the <code>CLAUDE.md</code> utility prompt. This is the single best place to read exactly how Anthropic words these.</li>
+      <li><strong>The long-running-agent harness</strong> (progress file + JSON checklist + init.sh + git) is documented with example prompts in <a class="inl" href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Effective harnesses for long-running agents</a>, with runnable code in the <a class="inl" href="https://github.com/anthropics/claude-quickstarts/tree/main/autonomous-coding">autonomous-coding quickstart</a>.</li>
+      <li><strong>Cline's Memory Bank prompt, verbatim.</strong> The full custom-instruction prompt (the "I am Cline, my memory resets between sessions… I MUST read ALL memory bank files at the start of EVERY task" framing, the file hierarchy, and the <code>update memory bank</code> workflow) is at <a class="inl" href="https://github.com/cline/prompts/blob/main/.clinerules/memory-bank.md">cline/prompts</a> and <a class="inl" href="https://docs.cline.bot/best-practices/memory-bank">docs.cline.bot</a>. The clever trick: it embeds a Mermaid flowchart <em>inside the instructions</em> to teach the file hierarchy.</li>
+    </ul>
+
+    <h4>Original prompts for clicode (copy-paste, then tune)</h4>
+    <p><strong>(1) The system-prompt memory protocol</strong> — inject this every session. This is the single most important piece; it's what makes reads/writes reflexive.</p>
+    <pre><span class="c">## MEMORY PROTOCOL — do this before anything else</span>
+Your context window may be reset at any moment. Anything not written to
+/memory is permanently lost. Treat /memory as the source of truth — not
+this conversation.
+
+AT SESSION START, in order:
+  1. view /memory                         <span class="c"># what exists</span>
+  2. read /memory/progress.md             <span class="c"># the story so far + next action</span>
+  3. read /memory/lineage_checklist.json  <span class="c"># which columns are done vs todo</span>
+  4. read /memory/conventions.md          <span class="c"># naming rules, known name mismatches, gotchas</span>
+  5. Resume the single highest-priority unfinished column.
+
+WHILE WORKING:
+  - After a column is traced end-to-end AND spot-checked, update
+    progress.md and flip that column's "status" to "done" in the checklist.
+  - When you learn a durable fact (a TF_/EX_ naming mismatch, a parse
+    gotcha), record it in conventions.md so you never rediscover it.
+  - Edit files in place with str_replace. Keep them coherent and
+    de-duplicated; do not append near-duplicate notes.
+
+NEVER mark a column "done" before its lineage reaches source leaves and is
+verified. A trustworthy checklist is the entire point of this system.</pre>
+
+    <p><strong>(2) The memory tool description</strong> — what persuades the model to actually use it. Persuasion ("if you finish without recording it, it's lost") matters as much as the schema.</p>
+    <pre>name: memory
+description: |
+  Persistent project memory under /memory. USE IT CONSTANTLY. Read it
+  before starting any work; write to it the moment you learn something a
+  future session would need. If you finish work without recording it, that
+  work is lost on the next context reset. Prefer surgical edits over
+  rewrites; keep every file small, current, and free of duplicates.
+commands:
+  view(path, range?)            <span class="c"># list dir / read file with line numbers</span>
+  create(path, file_text)       <span class="c"># NEW file only (errors if exists)</span>
+  str_replace(path, old, new)   <span class="c"># the primary EDIT — exact, unique snippet swap</span>
+  insert(path, line, text)      <span class="c"># insert after a line</span>
+  delete(path)                  <span class="c"># forget</span>
+  rename(old_path, new_path)    <span class="c"># move/reorganise</span>
+constraints: all paths must stay under /memory  <span class="c"># + path-traversal guard server-side</span></pre>
+
+    <p><strong>(3) progress.md</strong> — the narrative recovery log.</p>
+    <pre>progress.md is a recovery log for the NEXT agent, who remembers nothing.
+After each unit of work, add or update a dated entry capturing:
+  - What I just completed, and how I verified it
+  - Current overall state of the lineage build
+  - Known issues / blocked items
+  - The single next action to take
+Write so a fresh agent can resume in under a minute without re-exploring
+the codebase. Keep only the latest state plus a short recent-history tail.</pre>
+
+    <p><strong>(4) lineage_checklist.json</strong> — the to-do / scope (JSON on purpose).</p>
+    <pre>lineage_checklist.json defines SCOPE and STATUS — one entry per output column:
+  { "table": "...", "column": "...",
+    "status": "todo" | "in_progress" | "done",
+    "verified": false, "notes": "" }
+
+EDIT ONLY the "status", "verified", and "notes" fields. NEVER add, remove,
+reorder, or rewrite entries — that would corrupt the definition of "done".
+Work ONE column at a time: set "in_progress" before starting; set "done"
+with "verified": true only after end-to-end tracing is checked.
+(JSON is used here deliberately — you are far less likely to overwrite it
+than a Markdown file.)</pre>
+
+    <p><strong>(5) Procedural promotion</strong> — how episodic fixes graduate into reusable skills.</p>
+    <pre>When the SAME technique resolves the SAME class of problem 3+ times (e.g.
+"Ab Initio temp tables drop their TF_ prefix when read by the EX proc"),
+PROMOTE it: write a short reusable rule to /memory/skills/&lt;topic&gt;.md and
+reference it from conventions.md. This is how repeated one-off fixes become
+procedural knowledge the agent applies automatically next time.</pre>
+
+    <p><strong>(6) episodic_log.jsonl</strong> — append-only experience; search before re-deriving.</p>
+    <pre>episodic_log.jsonl is an append-only history, one JSON object per line:
+  { "ts", "table", "column", "attempt", "outcome": "success|fail", "fix" }
+
+BEFORE tracing a new column, search this log for similar past episodes and
+REUSE the fix instead of re-deriving it. AFTER finishing, append one new
+line. Never edit past lines — episodic memory is a record, not a
+current-state file. (Append with insert at end / create; do not str_replace.)</pre>
+
+    <h3>12.5 · Procedural &amp; episodic memory — the tool docs you asked about</h3>
+    <p>Unlike semantic facts, these two are rarely a single "write this fact" tool. Their canonical implementations:</p>
+    <ul class="tight">
+      <li><strong>Procedural memory → a prompt optimiser, not a CRUD tool.</strong> LangMem's <code>create_prompt_optimizer</code> takes <em>trajectories</em> (a conversation plus a feedback score) and returns an <em>improved system prompt</em> — the agent literally rewrites its own instructions from experience. Three algorithms: <code>metaprompt</code> (reflect, then propose), <code>gradient</code> (separate critique and proposal steps), and <code>prompt_memory</code> (single-step). In the file world, the equivalent is your <code>skills/*.md</code> / <code>.clinerules</code> being edited (by you or by auto-memory). Docs: <a class="inl" href="https://langchain-ai.github.io/langmem/concepts/conceptual_guide/">LangMem conceptual guide</a>.</li>
+      <li><strong>Episodic memory → a search tool over distilled examples.</strong> LangMem stores episodes as <em>few-shot examples</em> ("how a past problem was solved," not just "what the answer was") in a collection, and exposes <code>create_manage_memory_tool</code> (write) + <code>create_search_memory_tool</code> (retrieve by similarity). The "tool" for episodic memory is therefore a <em>retrieval</em> tool that injects the most similar past episodes into the prompt — exactly the pattern in clicode prompt (6).</li>
+      <li><strong>Namespacing for isolation.</strong> Every LangMem memory carries a namespace (e.g. <code>("project","{user_id}","collection")</code>) so memories never leak across users/projects — the file analogue is per-project directories and Claude Code's machine-local, project-scoped <code>MEMORY.md</code>.</li>
+    </ul>
+
+    <h3>12.6 · Architecture — native tool vs MCP server</h3>
+    <p>Two ways to wire all of the above. The decision is about <em>sharing</em> and <em>retrieval richness</em>.</p>
+    <div class="lvl">
+      <div class="ln">A</div>
+      <div class="lc"><div class="lt">Native client-side memory tool</div><div class="ld">Add the Memory Tool (<code>memory_20250818</code>) to the request; implement handlers for <code>view/create/str_replace/insert/delete/rename</code> against your filesystem (or DB, S3, encrypted store). Simplest path; the SDKs ship base classes to subclass. Best for a single agent with file memory. <strong>Must</strong> sandbox all paths under <code>/memory</code> and block traversal (<code>../</code>, URL-encoded variants).</div></div>
+      <div class="ln">B</div>
+      <div class="lc"><div class="lt">MCP server (clicode's natural choice)</div><div class="ld">Wrap the same operations as MCP tools, plus richer retrieval co-located with the data. Choose this when memory is <strong>shared across agents/clients</strong> (Claude Code, Cursor, your own loop all hitting one memory), or when retrieval needs graph traversal / hybrid search beside the files. Since clicode already runs an MCP server over the lineage graph, fold file-memory + episodic tools into that same server.</div></div>
+    </div>
+    <p>A concrete MCP surface for clicode — files, episodic, and your existing graph behind one server:</p>
+    <pre><span class="c"># clicode-memory  (MCP server: /memory files + episodic + lineage graph)</span>
+<span class="c"># --- file memory (markdown / json) ---</span>
+memory.list(prefix?)                 -> paths + sizes
+memory.read(path, range?)            -> contents, line-numbered, paginated
+memory.create(path, text)            -> new file
+memory.edit(path, old_str, new_str)  -> surgical str_replace
+memory.insert(path, line, text)      -> append/insert
+memory.delete(path)                  -> forget
+<span class="c"># --- episodic ---</span>
+episodic.append(entry)               -> add one JSONL line
+episodic.search(query, k, recency?)  -> similar past attempts + fixes
+<span class="c"># --- semantic graph (you already have this) ---</span>
+graph.neighbors(node)                -> one-hop lineage edges
+graph.trace(column)                  -> recursive upstream walk to leaves
+graph.invalidate(changed_file)       -> mark derived lineage stale (bi-temporal)</pre>
+
+    <div class="box pit">
+      <div class="box-k"><span class="dot"></span>Pitfalls that sink markdown-memory systems</div>
+      <p><strong>Bloat.</strong> Without an explicit "keep it coherent, edit don't append, delete the stale" instruction, files grow into noise. Cap file sizes; paginate reads. <strong>str_replace ambiguity.</strong> If <code>old_str</code> isn't unique the edit fails — tell the model to include surrounding context, and re-read before editing. <strong>Checklist corruption.</strong> Markdown checklists get rewritten by the model; use JSON and forbid structural edits. <strong>Silent skips.</strong> On long tasks the model drops steps — the returned tool reminder ("here's your next pending item") is the fix, so echo the next action after every memory write. <strong>Premature "done."</strong> Require end-to-end verification before any item flips to done, or the checklist becomes a confident lie.</p>
+    </div>
+    <div class="box check">
+      <div class="box-k"><span class="dot"></span>Comprehension check</div>
+      <ol>
+        <li>A teammate says "the LLM applies a git diff to update the file." Correct or refine their statement in one sentence — what's the actual primitive, and who decides the change?</li>
+        <li>Why does Anthropic store the feature checklist as JSON but the progress log as Markdown?</li>
+        <li>clicode needs the <em>same</em> memory readable by both a Claude Code session and your custom Python loop. Native memory tool or MCP server — and why?</li>
+        <li>Which file should be append-only, and why would <code>str_replace</code> be the wrong tool for it?</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- ============ 13 ============ -->
+  <section id="s13">
+    <div class="sec-eyebrow"><b>13</b> · The next level — firewall-proof</div>
+    <h2>The embedded memory engine: one SQLite file, no cloud, no approvals</h2>
+    <p>Here's the honest "next major upgrade" under your constraint, and the good news is it keeps everything you like about markdown. The shift is not a fancier file format or a SaaS — it's a change in the <em>verb</em>: <strong>stop making the model <span style="color:var(--hot)">read</span> memory; start letting it <span style="color:var(--cold)">query</span> memory.</strong> The substrate that makes that firewall-proof is one you already have — SQLite — plus, at most, a single vendorable pip package. And you keep your markdown files as the human-readable, git-friendly, auditable source of truth; the database is just a query index layered on top.</p>
+
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>What "firewall-proof" actually demands</div>
+      <p>No runtime network egress · no servers to stand up · standard-library or single vendorable packages (nothing that phones home or needs vendor approval) · single-file portability you can copy or commit anywhere · fully inspectable. Markdown clears that bar. The upgrade has to clear it too — and SQLite does, because <code>sqlite3</code> ships <em>inside Python's standard library</em>.</p>
+    </div>
+
+    <h3>13.1 · Why markdown caps out</h3>
+    <p>Files-as-memory has a hard ceiling, and you hit it the moment memory grows past what fits in context:</p>
+    <ul class="tight">
+      <li><strong>Read-the-whole-file doesn't scale.</strong> Retrieval is "open the file" — fine for a 60-line <code>conventions.md</code>, useless once you have thousands of episodes.</li>
+      <li><strong>Grep-only.</strong> You can match literal strings but not <em>meaning</em>, and you get no <em>ranking</em> — no "most relevant first."</li>
+      <li><strong>Flat.</strong> No relations, no graph, no metadata queries ("show me every failed parse for table&nbsp;X last week").</li>
+      <li><strong>Manual consolidation.</strong> The model has to keep files tidy by hand; they bloat.</li>
+    </ul>
+    <p>The upgrade is exactly the move from <em>the agent's filesystem</em> to <em>the agent's database</em> — selective, ranked, structured retrieval instead of dumping files into context (which §02's context-rot argument says is the wrong thing to do anyway).</p>
+
+    <h3>13.2 · Why SQLite is almost unfairly well-suited</h3>
+    <p>SQLite gives you querying while keeping every property of markdown memory. The field has already converged here — there are several open-source "one SQLite file = agent memory" projects (§14) built on precisely this.</p>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Capability</th><th>How SQLite gives it</th><th>Firewall cost</th></tr></thead>
+      <tbody>
+        <tr><td>Install</td><td><code>sqlite3</code> is in the <b>Python stdlib</b></td><td><b>Zero</b> — nothing to download or approve</td></tr>
+        <tr><td>Portability</td><td>The whole DB is <b>one file</b> — copy it, commit it, ship it</td><td>Zero — as portable as a markdown file</td></tr>
+        <tr><td>Ranked keyword search</td><td><b>FTS5 + BM25</b> built in (since SQLite 3.9, 2015)</td><td>Zero — no dependency</td></tr>
+        <tr><td>Metadata queries</td><td>Plain SQL + JSON1 (built in)</td><td>Zero</td></tr>
+        <tr><td>Graph traversal</td><td><b><code>WITH RECURSIVE</code></b> CTEs — your filter-then-traverse, in SQL</td><td>Zero</td></tr>
+        <tr><td>Vector / semantic search</td><td><code>sqlite-vec</code> loadable extension, or numpy cosine</td><td>One pip package (vendorable)</td></tr>
+        <tr><td>Concurrency &amp; safety</td><td>WAL mode, transactions, atomic edits</td><td>Zero</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <div class="box pit" style="background:#fff;border:1px dashed var(--line-strong)">
+      <div class="box-k" style="color:var(--ink-soft)"><span class="dot" style="background:var(--ink-soft)"></span>One caveat to verify, not assume</div>
+      <p>FTS5 ships in the SQLite amalgamation and is present in most macOS/Linux Python builds, but some <em>minimal</em> builds omit it. Verify in one line before relying on it: <code>python -c "import sqlite3; sqlite3.connect(':memory:').execute('CREATE VIRTUAL TABLE t USING fts5(x)')"</code> — if it doesn't raise, you're good. If it's missing, FTS5 is also available as a small loadable extension, or fall back to numpy cosine + LIKE.</p>
+    </div>
+
+    <h3>13.3 · The three retrieval upgrades — all local</h3>
+    <div class="flow">
+      <div class="step"><div class="sk">1 · lexical</div><div class="sv"><b>FTS5 / BM25</b> — ranked keyword search. Replaces grep. Zero deps.</div></div>
+      <div class="step"><div class="sk">2 · semantic</div><div class="sv"><b>Vector</b> — sqlite-vec or numpy cosine. Needs a local embedder.</div></div>
+      <div class="step"><div class="sk">3 · hybrid</div><div class="sv"><b>RRF + scoring</b> — fuse both, add recency/importance. Rank, don't dump.</div></div>
+    </div>
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Career bridge · BM25 is the right default for BMG</div>
+      <p>Every project that benchmarks this finds the same thing: for <strong>exact-identifier, technical-term queries — column names, proc names, <code>TF_</code>/<code>EX_</code> prefixes — BM25 beats dense vector search.</strong> Lineage memory is overwhelmingly identifier-driven, so your Tier-0 (FTS5-only) engine is already excellent <em>before</em> you add any embeddings. Add vectors for the fuzzy "what did I do about timeouts" queries; keep BM25 as the backbone.</p>
+    </div>
+
+    <h3>13.4 · The lineage graph — in the same file, no graph DB</h3>
+    <p>Store edges as a table and traverse with a recursive CTE — your column-tracing, in pure SQL, with no Neo4j and no server. And add Graphiti's bi-temporal trick as a single column: a <code>valid_until</code> that you <em>set</em> (not delete) when a source SQL/Ab&nbsp;Initio file changes, so stale lineage is invalidated while the history stays queryable — the audit-trail property WF governance wants.</p>
+    <pre><span class="c">-- trace a column back to its source leaves (filter-then-traverse, in SQL)</span>
+<span class="k">WITH RECURSIVE</span> upstream(node, depth) <span class="k">AS</span> (
+  <span class="k">SELECT</span> :column, 0
+  <span class="k">UNION</span>
+  <span class="k">SELECT</span> e.src, u.depth+1
+  <span class="k">FROM</span> edges e <span class="k">JOIN</span> upstream u <span class="k">ON</span> e.dst = u.node
+  <span class="k">WHERE</span> e.valid_until <span class="k">IS NULL</span> <span class="k">AND</span> u.depth &lt; 50)   <span class="c">-- only current edges</span>
+<span class="k">SELECT</span> <span class="k">DISTINCT</span> node <span class="k">FROM</span> upstream;</pre>
+    <p>You can also keep NetworkX (pure-Python, pip) in memory for richer algorithms and persist it to the same SQLite file — but for "walk upstream to the leaves," the CTE needs nothing beyond the standard library.</p>
+
+    <h3>13.5 · The embedding-behind-a-firewall problem — the real wrinkle</h3>
+    <p>Vector search needs an embedding model, and calling a cloud embedding API is exactly what your firewall blocks. Three tiers, easiest first:</p>
+    <div class="lvl">
+      <div class="ln">0</div>
+      <div class="lc"><div class="lt">No embeddings at all</div><div class="ld">FTS5/BM25 + metadata filters, then let the LLM itself rerank the top-N candidates. <strong>Pure standard library</strong> — nothing to vendor. For identifier-heavy lineage memory this is often all you need. <em>Start here</em>, and only add vectors when you observe recall failures on fuzzy queries.</div></div>
+      <div class="ln">1</div>
+      <div class="lc"><div class="lt">Vendored local embeddings (the key technique)</div><div class="ld">A tiny CPU model whose weights you <strong>download once on a connected machine, then commit/copy into the repo</strong> — so there is zero runtime egress. Best fit: <code>model2vec</code> — static embeddings, <strong>numpy is its only major dependency, ~8–30 MB on disk, up to 500× faster than a transformer on CPU, no GPU</strong>, retaining ~85–95% of the parent model's quality (the trade-off: it's uncontextualised — bag-of-tokens — which is fine for short memory records). Alternatives: a small ONNX model (<code>all-MiniLM-L6-v2</code>, 384-dim) or a <code>gguf</code> embedder via <code>llama.cpp</code> (e.g. nomic-embed), both runnable fully offline.</div></div>
+      <div class="ln">2</div>
+      <div class="lc"><div class="lt">Internal endpoint</div><div class="ld">If your org runs an internal embedding/LLM API behind the firewall, point at that. Same code path as Tier 1, just a different <code>embed()</code> function.</div></div>
+    </div>
+
+    <h3>13.6 · A concrete schema for clicode — step by step</h3>
+
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>First, kill the wrong mental model</div>
+      <p><strong>It is NOT one table per markdown file.</strong> It is <em>one</em> table with <em>many rows</em>. Each row is one small chunk of memory (a fact, a bullet, an episode, a convention). The "memory type" is a <strong>column on each row</strong> — <code>type</code> — not a separate table and not a separate file. The file boundary from §12 (<code>conventions.md</code> vs <code>episodic_log.jsonl</code>) becomes a <em>value</em> in the <code>type</code> column (plus a <code>source</code> column that remembers which file it came from). That is the whole trick: <em>"which file" stops being a location and becomes a filterable field.</em></p>
+    </div>
+
+    <p class="kicker">Step 1 — Create the store (run once)</p>
+    <p>One file, <code>clicode_memory.db</code>, sitting in the project next to <code>/memory/*.md</code>. The <code>type</code> values are a small controlled vocabulary you choose; <code>source</code> ties each row back to its markdown file.</p>
+    <pre><span class="k">PRAGMA</span> journal_mode=WAL;            <span class="c">-- many readers + one writer, safely</span>
+
+<span class="k">CREATE TABLE</span> memory (
+  id INTEGER <span class="k">PRIMARY KEY</span>,
+  type        TEXT <span class="k">NOT NULL</span>,   <span class="c">-- the type lives HERE: semantic|episodic|procedural|progress|convention</span>
+  source      TEXT,            <span class="c">-- which markdown file this row came from (provenance / rebuild)</span>
+  content     TEXT <span class="k">NOT NULL</span>,   <span class="c">-- one chunk of text (a bullet, a fact, one JSONL episode)</span>
+  table_name  TEXT, column_name TEXT,   <span class="c">-- BMG locators (NULL if not applicable)</span>
+  importance  REAL <span class="k">DEFAULT</span> 0,
+  ts          TEXT <span class="k">DEFAULT</span> (datetime('now')),
+  valid_until TEXT);           <span class="c">-- NULL = current; set (not delete) on invalidation</span>
+
+<span class="k">CREATE INDEX</span> idx_type  <span class="k">ON</span> memory(type);       <span class="c">-- so type filters are instant</span>
+<span class="k">CREATE INDEX</span> idx_valid <span class="k">ON</span> memory(valid_until);
+
+<span class="c">-- ranked keyword search over the SAME rows (built in, zero deps)</span>
+<span class="k">CREATE VIRTUAL TABLE</span> memory_fts <span class="k">USING</span> fts5(
+  content, table_name, column_name, content='memory', content_rowid='id');
+<span class="c">-- + INSERT/UPDATE/DELETE triggers to keep memory_fts in sync (add all three as a set)</span>
+
+<span class="c">-- optional (Tier 1+): one embedding per row, stored once</span>
+<span class="k">ALTER TABLE</span> memory <span class="k">ADD COLUMN</span> embedding BLOB;   <span class="c">-- numpy float32 bytes; or use sqlite-vec's vec0</span>
+
+<span class="k">CREATE TABLE</span> edges (src TEXT, dst TEXT, rel TEXT, valid_until TEXT);  <span class="c">-- lineage, same file</span></pre>
+
+    <p class="kicker">Step 2 — Ingest the markdown into rows (run once, then on change)</p>
+    <p>This is the step that was implicit before. A small routine reads each markdown file, splits it into chunks, and inserts one row per chunk — stamping the <code>type</code> from the file's category and embedding the chunk <strong>once, here</strong> (never again at query time). Re-run it when a file changes (skip unchanged files by content hash).</p>
+    <pre><span class="c"># map each source file to a memory type</span>
+TYPE_OF = {<span class="s">"conventions.md"</span>:<span class="s">"convention"</span>, <span class="s">"progress.md"</span>:<span class="s">"progress"</span>,
+           <span class="s">"episodic_log.jsonl"</span>:<span class="s">"episodic"</span>, <span class="s">"skills/"</span>:<span class="s">"procedural"</span>}
+
+<span class="k">def</span> ingest(path):
+    typ = TYPE_OF[path.name]
+    <span class="k">for</span> chunk <span class="k">in</span> split(read(path)):          <span class="c"># a bullet / paragraph / one JSONL line</span>
+        emb = embed(chunk)                   <span class="c"># Tier 1+: compute ONCE, store it</span>
+        db.execute(<span class="s">"INSERT INTO memory(type,source,content,embedding) VALUES(?,?,?,?)"</span>,
+                   (typ, path.name, chunk, emb))   <span class="c"># the type is written per row</span></pre>
+
+    <p class="kicker">Step 3 — Search (where the type column finally earns its keep)</p>
+    <p>This is the part you said you couldn't see: the <code>type</code> column used as a <em>filter</em>. The pattern is <strong>filter first, score second</strong> — narrow to the relevant rows by structured metadata, then rank only that subset.</p>
+    <pre><span class="k">def</span> search(query, type=None, table=None, k=8, mode=<span class="s">"hybrid"</span>):
+    <span class="c"># (a) FILTER — the type / locator / validity filter (this is the new power)</span>
+    where, params = <span class="s">"valid_until IS NULL"</span>, []
+    <span class="k">if</span> type:  where += <span class="s">" AND type = ?"</span>;       params += [type]
+    <span class="k">if</span> table: where += <span class="s">" AND table_name = ?"</span>; params += [table]
+
+    <span class="c"># (b) KEYWORD — FTS5, ranked by BM25, restricted to the filtered subset</span>
+    kw = db.execute(<span class="s">f"""
+        SELECT m.id, m.content, bm25(memory_fts) AS s
+        FROM memory_fts JOIN memory m ON m.id = memory_fts.rowid
+        WHERE memory_fts MATCH ? AND {where}
+        ORDER BY s LIMIT 50"""</span>, [query, *params]).fetchall()
+    <span class="k">if</span> mode == <span class="s">"bm25"</span>: <span class="k">return</span> kw[:k]
+
+    <span class="c"># (c) SEMANTIC — embed only the QUERY, cosine vs the stored vectors of the SAME subset</span>
+    rows = db.execute(<span class="s">f"SELECT id, content, embedding FROM memory WHERE {where}"</span>, params).fetchall()
+    qv = embed(query)
+    vec = sorted(rows, key=<span class="k">lambda</span> r: cosine(qv, unblob(r.embedding)), reverse=<span class="k">True</span>)[:50]
+
+    <span class="c"># (d) FUSE (RRF) + recency/importance, (e) return the top-k CHUNKS (not files)</span>
+    <span class="k">return</span> rrf(kw, vec, k=k)</pre>
+
+    <p class="kicker">Steps 4–6 — Inject, then maintain</p>
+    <p>Inject only the top-<code>k</code> returned <em>rows</em> into context (not whole files — that's the §02 context-rot win). Then maintain: <code>graph.trace</code> walks <code>edges</code> via the recursive CTE in §13.4; on a source change you <strong>set <code>valid_until</code></strong> on the affected rows (auditable forget); a background pass dedupes and promotes repeated fixes. Crucially, the markdown files stay the source of truth — the table is rebuilt from them by re-running Step&nbsp;2.</p>
+
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>"But isn't this just grep + cosine again? How is it easier?"</div>
+      <p>Fair challenge — and the honest answer is: <strong>the cosine math is identical.</strong> What changes is everything <em>around</em> it. Four concrete differences, none of which the bare markdown files give you:</p>
+      <ul>
+        <li><strong>Embed once, not every query.</strong> With raw files, the vectors live nowhere — you'd re-embed every chunk of every file on each query (slow, model loaded each time), or hand-build a cache and reinvent the database badly. Here the embedding is computed at <em>write</em> time and stored on the row; at query time you embed only the short query string.</li>
+        <li><strong>Keyword search is an indexed, ranked inverted index — grep is an unranked linear scan.</strong> Grep reads every byte and returns substring hits in file order. FTS5 jumps to matching rows and <em>ranks them by BM25 relevance</em>. Ranking is the thing grep fundamentally cannot do.</li>
+        <li><strong>Filter-then-score.</strong> This is what the <code>type</code> column buys you. "Only <em>episodic</em> memories for table <em>EUCT_X</em> that are still <em>valid</em>" is one <code>WHERE</code> clause that narrows to a handful of rows <em>before</em> you run any similarity. You score a pre-filtered slice, not the whole corpus. With files you'd open, parse, and filter by hand.</li>
+        <li><strong>Record granularity.</strong> You retrieve the top-k <em>chunks</em> — the precise high-signal slice — not whole files. Fewer, better tokens in the window.</li>
+      </ul>
+      <p><strong>The honest caveat:</strong> at small scale none of this matters — if your whole memory fits in context, just read the files; the database is overkill. The engine earns its place once memory grows past what you can dump in the window, once you need <em>ranking</em>, and once you need to slice by <em>type / locator / validity</em>. That threshold is exactly where a deep-work agent like clicode lives.</p>
+    </div>
+
+    <h3>13.7 · The tool surface — same shape as §12, now engine-backed</h3>
+    <p>Expose it as MCP tools (clicode already runs an MCP server, so fold these in) or as plain tool calls. The agent's mental model barely changes — it still "writes notes" and "searches memory" — but retrieval is now ranked and selective.</p>
+    <pre><span class="c"># clicode-memory  (one SQLite file behind an MCP server)</span>
+memory.write(type, content, table?, column?, tags?, importance?)
+memory.search(query, type?, k=8, mode="hybrid|bm25|vector")  <span class="c"># ranked, not whole-file</span>
+memory.update(id, ...)             <span class="c"># or str_replace on the markdown source, then re-index</span>
+memory.invalidate(filter)          <span class="c"># set valid_until (bi-temporal forget)</span>
+episodic.search(query, k, recency) <span class="c"># reuse a past fix instead of re-deriving</span>
+graph.trace(column)                <span class="c"># recursive-CTE walk to source leaves</span>
+memory.consolidate()               <span class="c"># dedup + promote repeated fixes (run at session end)</span></pre>
+
+    <h3>13.8 · Write, consolidate, forget — now that you can query</h3>
+    <p>The engine makes §04's management operations cheap and automatic: <strong>dedup</strong> at write time by similarity threshold (don't store a near-duplicate); <strong>decay</strong> by folding recency into the ranking rather than deleting; <strong>invalidate</strong> via <code>valid_until</code> when source code changes (bi-temporal, auditable); <strong>consolidate</strong> in a background "sleep-time" routine you run at session end — and <strong>promote</strong> any fix that has resolved the same class of problem 3+ times into a procedural skill. All local, all in one file.</p>
+
+    <h3>13.9 · Keep markdown as the source of truth (non-destructive)</h3>
+    <p>This is the architectural elegance and the reason it satisfies your constraint completely. <strong>Files stay canonical</strong> — human-readable, git-diffable, the audit record a regulator can read. <strong>SQLite is a derived index</strong>, rebuildable from the files at any time via content-hash sync (re-index only what changed). If the DB corrupts, or you move tools, or someone audits you, you lose nothing — the markdown is intact and the index is regenerated with one command. You are adding a query layer, not replacing your memory.</p>
+    <figure class="figure">
+      <div class="stack" style="max-width:560px;margin:0 auto">
+        <div class="tier t-work"><div class="t-k">Source of truth</div><div class="t-v">Markdown / JSON files — portable, git-friendly, auditable (unchanged from §12)</div></div>
+        <div class="tier t-sem"><div class="t-k">Index (derived, rebuildable)</div><div class="t-v">clicode_memory.db — FTS5 · sqlite-vec · edges · recency/importance</div></div>
+        <div class="tier t-proc"><div class="t-k">Access</div><div class="t-v">MCP tools / tool calls: memory.search · graph.trace · episodic.search</div></div>
+        <div class="tier t-cold"><div class="t-k">Embedder (optional, vendored)</div><div class="t-v">model2vec / ONNX weights committed to the repo — no runtime egress</div></div>
+      </div>
+      <figcaption>Files remain the truth; the SQLite engine is a derived, rebuildable index. Nothing leaves the machine.</figcaption>
+    </figure>
+
+    <h3>13.10 · The firewall-proof ladder</h3>
+    <div class="lvl">
+      <div class="ln">1</div><div class="lc"><div class="lt">Markdown files <span class="pill cold" style="margin-left:6px">you have this</span></div><div class="ld">Source of truth. Portable, auditable. Retrieval = read the file.</div></div>
+      <div class="ln">2</div><div class="lc"><div class="lt">+ SQLite FTS5 / BM25 index <span class="pill sig" style="margin-left:6px">stdlib, zero deps</span></div><div class="ld">Index the files into one <code>.db</code>; ranked keyword search replaces grep. Massive jump, nothing to install. Excellent alone for identifier-heavy lineage.</div></div>
+      <div class="ln">3</div><div class="lc"><div class="lt">+ vendored local embeddings → hybrid</div><div class="ld">model2vec (numpy-only) or ONNX, weights committed. Add vector search; fuse with BM25 via RRF for fuzzy queries.</div></div>
+      <div class="ln">4</div><div class="lc"><div class="lt">+ graph CTEs + bi-temporal invalidation</div><div class="ld">Edges table + <code>WITH RECURSIVE</code> for lineage; <code>valid_until</code> for auditable forgetting when source code changes.</div></div>
+      <div class="ln">5</div><div class="lc"><div class="lt">+ background consolidation</div><div class="ld">Sleep-time dedup, decay, and promotion of repeated fixes into skills. The store now maintains itself.</div></div>
+    </div>
+
+    <h3>13.11 · Reference builds &amp; the OSS-framework question</h3>
+    <p>You don't have to write it from scratch — several Apache/AGPL projects are <em>exactly</em> this and run with no cloud: <strong>sqliteai/sqlite-memory</strong> (markdown-as-source-of-truth + hybrid FTS5/vector + local embedding via llama.cpp), and <strong>bozbuilds/AIngram</strong> (one SQLite file: sqlite-vec + FTS5 + a knowledge graph + an MCP server, RRF fusion, explicitly "no cloud dependencies"). Read them as blueprints.</p>
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>"Can't I just self-host Mem0 / LangMem / Letta?"</div>
+      <p>Yes — they're all pip-installable open source and can run fully self-hosted with a local model, so if <code>pip</code> works and you can point them at a local embedder, the firewall doesn't rule them out. The trade-offs: they pull heavier dependency trees, several <em>default</em> to cloud embedding/LLM endpoints you'd have to override, and they're more to audit. The purest firewall-proof, maximally-portable, fully-inspectable path is the roll-your-own SQLite engine (or the one-file projects above). Pick frameworks for speed-to-build; pick the SQLite engine for portability, auditability, and zero approval surface — which, for a regulated-finance setting, usually wins.</p>
+    </div>
+
+    <div class="box pit">
+      <div class="box-k"><span class="dot"></span>Pitfalls specific to the engine</div>
+      <p><strong>Embedding egress.</strong> The one thing that breaks the firewall promise — <em>vendor the model weights</em>, never download at runtime. <strong>FTS sync.</strong> If you forget the INSERT/UPDATE/DELETE triggers, search returns deleted/stale rows — add all three as a set. <strong>One writer.</strong> SQLite allows many readers but one writer; use WAL and keep transactions short. <strong>BM25 sign.</strong> FTS5's <code>bm25()</code> returns lower-is-better and negates internally — order correctly or your "best" results come last. <strong>Don't lose the audit trail.</strong> The files are the truth; the DB is disposable — never let the index become the only copy.</p>
+    </div>
+    <div class="box check">
+      <div class="box-k"><span class="dot"></span>Comprehension check</div>
+      <ol>
+        <li>Name the single change in verb that defines this whole upgrade, and why context-rot (§02) makes it the right move.</li>
+        <li>For a query like <code>EUCT_TAX_STARS.subvention</code>, would you expect BM25 or dense vectors to retrieve better, and why?</li>
+        <li>Your firewall blocks the HuggingFace hub. Describe, in one sentence, how you still get local embeddings.</li>
+        <li>Why keep the markdown files at all once everything is queryable in SQLite — give the governance reason and the failure-recovery reason.</li>
+        <li>A source Ab&nbsp;Initio file changes. What do you do to the lineage facts derived from it, and which column makes that auditable?</li>
+      </ol>
+    </div>
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>The one-line interview answer</div>
+      <p>"To upgrade file memory without any cloud or approved package, I index the markdown into a single SQLite file: FTS5/BM25 for exact identifiers, sqlite-vec (or numpy cosine) with a vendored model2vec embedder for semantics, RRF to fuse them, recursive CTEs for the lineage graph, and a <code>valid_until</code> column for bi-temporal, auditable invalidation — keeping the markdown as the rebuildable source of truth. Everything runs locally; nothing leaves the machine." That answer demonstrates retrieval, graph, governance, <em>and</em> deployment-constraint awareness in one breath.</p>
+    </div>
+  </section>
+
+  <!-- ============ 14 ============ -->
+  <section id="s14">
+    <div class="sec-eyebrow"><b>14</b> · Invocation</div>
+    <h2>How the agent calls memory — tools vs MCP, and why SQLite beats markdown at scale</h2>
+    <p>Two questions remain: <em>how does the agent actually reach the memory</em> (plain tool calls or an MCP server?), and <em>why is the SQLite engine really better than markdown</em> when, as you rightly note, both can filter by date and both can return results? Here is the single reference, for both designs.</p>
+
+    <h3>14.1 · Tool calls and MCP are not opposites</h3>
+    <p>This trips everyone up. <strong>An MCP server is a way to <em>deliver</em> tools; it is not an alternative to tool calls.</strong> From the model's point of view both are identical: it sees a tool with a name, a description, and a JSON argument schema, and it emits a <code>tool_use</code>. The argument schema is the same whether you host it natively or behind MCP — <em>MCP does not change the arguments</em>, it changes who runs the handler and who can reach it.</p>
+    <p>The real axis is <strong>where the handler executes</strong>:</p>
+    <ul class="tight">
+      <li><strong>Native (in-process) tools.</strong> You put the tool definitions directly in your API request's <code>tools</code> array; when the model calls one, <em>your own application code</em> runs the handler. Fewest moving parts; one app owns the memory.</li>
+      <li><strong>MCP server.</strong> The tools live in a separate process speaking the Model Context Protocol; <em>any</em> MCP-capable client (Claude Code, Cursor, your Python loop) can connect and call them. Reusable and decoupled, at the cost of running a server.</li>
+    </ul>
+
+    <h3>14.2 · The markdown design — tools &amp; arguments</h3>
+    <p>For markdown, the idiomatic surface is <strong>one tool with a <code>command</code> discriminator</strong> — exactly what Anthropic ships as the native <code>memory_20250818</code> tool, so you often don't even author the schema; you enable the built-in tool and implement six handlers. The arguments per command:</p>
+    <pre>name: <span class="s">"memory"</span>
+description: <span class="s">"Read/write project memory under /memory. View before acting; record durable facts as you learn them."</span>
+input_schema:
+  command: <span class="k">enum</span>[view, create, str_replace, insert, delete, rename]   <span class="c"># required</span>
+  path:        string        <span class="c"># view/create/str_replace/insert/delete — must stay under /memory</span>
+  view_range:  [int, int]    <span class="c"># view (optional)</span>
+  file_text:   string        <span class="c"># create</span>
+  old_str:     string        <span class="c"># str_replace — the exact, unique snippet to find</span>
+  new_str:     string        <span class="c"># str_replace — what to put in its place</span>
+  insert_line: int           <span class="c"># insert</span>
+  insert_text: string        <span class="c"># insert</span>
+  old_path, new_path: string <span class="c"># rename</span></pre>
+    <p>A concrete call the model emits to flip a checklist item to done, and the result your handler returns:</p>
+    <pre><span class="c">// model -> your handler</span>
+{ <span class="s">"name"</span>: <span class="s">"memory"</span>, <span class="s">"input"</span>: {
+    <span class="s">"command"</span>: <span class="s">"str_replace"</span>, <span class="s">"path"</span>: <span class="s">"/memory/lineage_checklist.json"</span>,
+    <span class="s">"old_str"</span>: <span class="s">"\"subvention\", \"status\": \"in_progress\""</span>,
+    <span class="s">"new_str"</span>: <span class="s">"\"subvention\", \"status\": \"done\""</span> } }
+<span class="c">// your handler -> model</span>
+<span class="s">"The memory file has been edited."</span>  <span class="c">// + a snippet with line numbers</span></pre>
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Recommendation for markdown</div>
+      <p><strong>Native tool.</strong> It's already a shipped native tool, the handlers are trivial file ops, and a single agent owns the files. Reach for MCP only if the <em>same</em> files must be edited by several different clients.</p>
+    </div>
+
+    <h3>14.3 · The SQLite design — tools &amp; arguments</h3>
+    <p>The engine's tools are higher-level and query-shaped — the model says <em>what it wants</em>, not <em>which file to open</em>. The handlers run the SQL from §13. Same argument schemas whether native or MCP.</p>
+    <pre><span class="c"># the workhorse</span>
+memory_search(query: string,            <span class="c"># required</span>
+              type:  enum?[semantic,episodic,procedural,progress,convention],
+              table: string?, since: date?, k: int=8,
+              mode:  enum[bm25,vector,hybrid]=hybrid) -> ranked records
+
+memory_write(type: enum, content: string,           <span class="c"># required</span>
+             table: string?, column: string?, importance: number=0) -> id
+
+memory_invalidate(filter: {type?, table?, source?}, reason: string?) -> n   <span class="c"># sets valid_until</span>
+
+episodic_search(query: string, k: int=5, since: date?,
+                outcome: enum?[success,fail]) -> ranked episodes
+
+graph_trace(column: string, max_depth: int=50) -> [source leaves]   <span class="c"># recursive CTE</span>
+
+memory_consolidate() -> summary   <span class="c"># background: dedup + promote repeated fixes</span></pre>
+    <p>A concrete call — "have I successfully fixed a subvention-mapping issue for this table in the last month?":</p>
+    <pre>{ <span class="s">"name"</span>: <span class="s">"episodic_search"</span>, <span class="s">"input"</span>: {
+    <span class="s">"query"</span>: <span class="s">"subvention mapping fix"</span>, <span class="s">"table"</span>: <span class="s">"EUCT_TAX"</span>,
+    <span class="s">"since"</span>: <span class="s">"2026-05-27"</span>, <span class="s">"outcome"</span>: <span class="s">"success"</span>, <span class="s">"k"</span>: 3 } }
+<span class="c">// -> 3 ranked records, ~300 tokens, including the one phrased "premium allocation"</span></pre>
+    <div class="box bridge">
+      <div class="box-k"><span class="dot"></span>Recommendation for the engine</div>
+      <p><strong>MCP server.</strong> clicode already runs an MCP server over the lineage graph — fold memory into it. The retrieval logic (FTS5 + vectors + fusion + CTEs) is substantial and belongs in its own process beside the data, and one server makes the same memory reachable from Claude Code, Cursor, or your own loop. The tool arguments above are exactly the MCP tool arguments — MCP changes nothing about them.</p>
+    </div>
+
+    <h3>14.4 · Native vs MCP — the decision rule</h3>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Choose native in-process tools when…</th><th>Choose an MCP server when…</th></tr></thead>
+      <tbody>
+        <tr><td>One app / one agent owns the memory</td><td>Multiple agents or clients must share it</td></tr>
+        <tr><td>The handler is trivial (file read/write)</td><td>The handler is substantial (FTS5 + vectors + fusion + graph)</td></tr>
+        <tr><td>You want the fewest moving parts</td><td>You already run an MCP server (clicode does)</td></tr>
+        <tr><td>No cross-tool reuse needed</td><td>You want Claude Code / Cursor / a loop to all use one memory</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>Net: <strong>markdown → native; clicode's SQLite engine → MCP.</strong> Either way the model just emits tool calls; MCP only relocates the handler.</p>
+
+    <h3>14.5 · Markdown vs SQLite, head to head — answering your challenge directly</h3>
+    <p>You're right on the narrow point: <strong>both can filter by date, and both can return results.</strong> So the question isn't <em>whether</em> you can — it's <em>where the work happens</em>. That single reframe is the whole answer.</p>
+    <div class="box term">
+      <div class="box-k"><span class="dot"></span>The reframe: selection in the window vs selection in the engine</div>
+      <p>With markdown, every non-trivial retrieval requires <strong>loading text into the context window first</strong>, and then the <em>model</em> does the filtering/ranking by reading it. With SQLite, the filtering/ranking happens <strong>in the engine, before anything touches the window</strong>. Since §02 established that the context window is the scarce, rot-prone resource, moving selection <em>out</em> of it is the entire advantage. "You can filter by date in both" hides this: in markdown you filter by date by <em>spending context</em> on the whole file and trusting the model to eyeball dates; in SQLite a <code>WHERE ts &gt; ?</code> returns only the matching rows at zero context cost.</p>
+    </div>
+    <div class="tbl-scroll">
+    <table>
+      <thead><tr><th>Operation</th><th>Markdown (read / grep)</th><th>SQLite engine</th></tr></thead>
+      <tbody>
+        <tr><td>Filter by date</td><td>Load file into context; model eyeballs dates (costs tokens, unreliable over many entries)</td><td><code>WHERE ts &gt; ?</code> — only matches return, zero context cost</td></tr>
+        <tr><td>Keyword find</td><td>grep: substring only, <b>no ranking</b>, every match in file order</td><td>FTS5: indexed, <b>BM25-ranked</b>, top-k</td></tr>
+        <tr><td>Meaning ("hang" ≈ "timeout")</td><td>grep misses it (no shared substring); semantic needs re-embedding everything each query</td><td>vectors stored once; cosine over the filtered subset finds it</td></tr>
+        <tr><td>"How many columns unverified?"</td><td>Model reads the list and counts in its head</td><td><code>SELECT COUNT(*) WHERE verified=0</code></td></tr>
+        <tr><td>"Episodes sharing the same fix"</td><td>Impossible without loading everything</td><td><code>GROUP BY fix</code></td></tr>
+        <tr><td>10,000 entries</td><td>Can't load; grep returns unranked noise</td><td>Index lookup, sublinear, ranked top-k</td></tr>
+        <tr><td>Memory fits in the window</td><td><b>✅ just read it — simplest, best</b></td><td>Overkill</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p><strong>The concrete case that makes it undeniable.</strong> clicode has 4,000 episodic entries across many sessions — hundreds of KB, far past any sane context budget — and is about to trace <code>EUCT_TAX.subvention</code>. It wants: <em>a successful subvention-mapping fix for this table in the last month.</em></p>
+    <ul class="tight">
+      <li><strong>Markdown:</strong> it can't load 4,000 lines. It greps <code>subvention</code> → ~60 unranked lines mixing successes and failures and old and new; it loads those 60 lines (context cost), eyeballs dates and outcomes in-prompt, and <em>misses</em> the relevant entry that was logged as "premium allocation" (no shared substring).</li>
+      <li><strong>SQLite:</strong> one <code>episodic_search</code> with <code>since</code> + <code>outcome='success'</code> + <code>table</code> filters to a handful of rows, ranks them by BM25+cosine, and returns the top 3 — including the "premium allocation" one (semantic match) — for ~300 tokens.</li>
+    </ul>
+    <p>Same "filter by date," available in both — but in markdown it costs the whole file in context, relies on in-prompt date reasoning, can't rank, and can't match meaning; in SQLite it's exact, ranked, semantic, and nearly free of context.</p>
+    <div class="box iv">
+      <div class="box-k"><span class="dot"></span>The honest verdict</div>
+      <p>It is <em>not</em> that SQLite computes better similarity math — cosine is cosine. It is that SQLite retrieves <strong>without spending context</strong>, <strong>with ranking</strong>, and <strong>with aggregation</strong> — three things "read the file" and grep fundamentally lack. And the tell: the moment you bolt a real search index onto markdown to "retrieve equally well," you have <em>built the SQLite approach</em> — pure markdown's only retrieval primitives are read-file and grep, and both break past the window. So: <strong>small memory → markdown wins</strong> (simpler, auditable, zero deps); <strong>memory past the window → SQLite wins</strong>, because in markdown retrieval <em>is</em> "load candidates into context," which is the exact resource you're trying to conserve.</p>
+    </div>
+
+    <h3>14.6 · The advantages of the engine — best reasons first</h3>
+    <p>If you keep one ranked list from this whole document, keep this one. Why a local SQLite engine beats flat markdown memory, most decisive reason first:</p>
+    <ol class="ranked">
+      <li><b>It answers questions the window can't hold.</b> Aggregations, ranked top-k, and dependency traversals over a corpus larger than the context window are <em>impossible</em> with read-file + grep — grep can't compute, and the model can't see it all at once. SQLite returns the <em>answer</em> (a count, a top-3, a traced path) without putting the corpus in context. This is "cannot," not "slower" — the single decisive reason.</li>
+      <li><b>Selection happens in the engine, not in the window.</b> Filtering and ranking run before anything enters the context window, conserving the scarce, rot-prone resource. Markdown can only filter by first <em>spending</em> context on the candidates.</li>
+      <li><b>It ranks.</b> It returns the top-k most relevant records, so you inject ~3 high-signal rows instead of 60 unranked grep lines or whole files. Grep has no notion of relevance at all.</li>
+      <li><b>It matches meaning, cheaply.</b> Embeddings stored once let "hang" find "timeout." Markdown either can't do semantic search, or must re-embed the entire corpus on every query — which is just rebuilding the database, badly.</li>
+      <li><b>It filters by structured metadata.</b> <code>type</code>, table/column, validity, date — pushed down so you score only the relevant slice. Exact, and free of context cost.</li>
+      <li><b>It aggregates and joins.</b> <code>COUNT</code> / <code>GROUP BY</code> / <code>JOIN</code> answer "how many columns are unverified?" or "which fix recurs across sessions?" — questions markdown can only approach by loading everything and reasoning in-prompt.</li>
+      <li><b>It scales and stays clean.</b> Sublinear index lookups, dedup at write time, bounded growth, and bi-temporal <code>valid_until</code> for auditable forgetting. Flat files bloat and slow linearly, and have no cheap way to detect contradictions.</li>
+    </ol>
+    <p><strong>The honest counterweight:</strong> below the window, none of this matters — if all your memory fits in context, markdown wins on simplicity, auditability, and zero dependencies. The engine earns its keep precisely when memory outgrows the window, which is exactly where a deep-work agent like clicode lives.</p>
+
+    <div class="box check">
+      <div class="box-k"><span class="dot"></span>Comprehension check</div>
+      <ol>
+        <li>"MCP server" vs "tool calls" — why is that a false dichotomy, and what actually differs between the two delivery modes?</li>
+        <li>If the argument schema is identical native-vs-MCP, what's the one-line reason to put clicode's engine behind MCP rather than native?</li>
+        <li>State the single sentence that defuses "you can filter by date in both" — i.e., the thing that's actually different about <em>where</em> the date filter runs.</li>
+        <li>Give one retrieval that markdown literally cannot do at all (not just "does worse"), and why.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="src">
+    <div class="sec-eyebrow"><b>15</b> · Sources</div>
+    <h2>Sources &amp; further reading</h2>
+    <p style="color:var(--ink-soft); font-size:.97em">Prioritising primary sources — papers, official docs, and the systems' own engineering writing — over aggregators.</p>
+    <h4>Foundational papers</h4>
+    <ul class="src">
+      <li><b>MemGPT: Towards LLMs as Operating Systems</b> — Packer et&nbsp;al., 2023. arXiv:2310.08560</li>
+      <li><b>Generative Agents: Interactive Simulacra of Human Behavior</b> — Park et&nbsp;al., UIST 2023. arXiv:2304.03442 (memory stream; recency·importance·relevance; reflection)</li>
+      <li><b>Cognitive Architectures for Language Agents (CoALA)</b> — Sumers et&nbsp;al., 2023 (the working/episodic/semantic/procedural frame)</li>
+      <li><b>Mem0: Production-Ready AI Agents with Scalable Long-Term Memory</b> — Chhikara et&nbsp;al., 2025. arXiv:2504.19413</li>
+      <li><b>Zep: A Temporal Knowledge Graph Architecture for Agent Memory</b> — Rasmussen et&nbsp;al., 2025. arXiv:2501.13956 (Graphiti, bi-temporal)</li>
+      <li><b>A-MEM: Agentic Memory for LLM Agents</b> — Xu et&nbsp;al., 2025. arXiv:2502.12110 (Zettelkasten)</li>
+      <li><b>Lost in the Middle</b> — Liu et&nbsp;al., TACL 2024; and <b>Context Rot</b> — Chroma Research, 2025</li>
+    </ul>
+    <h4>Surveys (read for the map)</h4>
+    <ul class="src">
+      <li><b>Rethinking Memory in LLM-based Agents: Representations, Operations, Emerging Topics</b> — arXiv:2505.00675 (parametric vs contextual; management vs utilisation)</li>
+      <li><b>Memory for Autonomous LLM Agents: Mechanisms, Evaluation, Emerging Frontiers</b> — arXiv:2603.07670 (write–manage–read; 2022→2026; benchmark critique)</li>
+      <li>Benchmarks: <b>LoCoMo</b> (arXiv:2402.17753), <b>LongMemEval</b> (arXiv:2410.10813), <b>MemBench</b> (arXiv:2506.21605)</li>
+    </ul>
+    <h4>Engineering &amp; docs (the practical canon)</h4>
+    <ul class="src">
+      <li><b>Effective context engineering for AI agents</b> — Anthropic, Sept 2025 (compaction · note-taking · sub-agents · JIT retrieval)</li>
+      <li><b>How we built our multi-agent research system</b> — Anthropic (sub-agent pattern)</li>
+      <li><b>Memory tool</b> &amp; <b>How Claude remembers your project</b> — Claude API / Claude Code docs (memory_20250818; CLAUDE.md, auto memory, rules, skills, subagents)</li>
+      <li><b>LangMem SDK</b> &amp; <b>Long-Term Agentic Memory with LangGraph</b> — LangChain / DeepLearning.AI (semantic/episodic/procedural; hot-path vs background)</li>
+      <li><b>Letta blog &amp; docs</b> — agent memory, sleep-time compute, Letta V1 / Letta Code</li>
+      <li><b>Graphiti</b> (getzep/graphiti, GitHub) — open-source temporal KG engine</li>
+    </ul>
+    <h4>Markdown-file memory · exact prompts &amp; tools (§12)</h4>
+    <ul class="src">
+      <li><b>Memory tool</b> — Claude docs: the six commands (<code>view/create/str_replace/insert/delete/rename</code>), the auto-injected memory protocol, and the multi-session pattern. <code>platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool</code></li>
+      <li><b>Effective harnesses for long-running agents</b> — Anthropic, Nov 2025: initializer + coding agent, progress file, JSON feature checklist, init.sh, git recovery</li>
+      <li><b>autonomous-coding quickstart</b> — <code>github.com/anthropics/claude-quickstarts/tree/main/autonomous-coding</code> (runnable harness)</li>
+      <li><b>Piebald-AI/claude-code-system-prompts</b> — verbatim Claude Code tool descriptions incl. full <code>TodoWrite</code>, compaction, CLAUDE.md prompts</li>
+      <li><b>Cline Memory Bank</b> — verbatim prompt at <code>github.com/cline/prompts/blob/main/.clinerules/memory-bank.md</code>; guide at <code>docs.cline.bot/best-practices/memory-bank</code></li>
+      <li><b>Todo Lists / Task tools</b> — Claude Code docs: <code>TodoWrite</code> (in-session) vs <code>TaskCreate/Update/Get/List</code> (persistent, dependencies)</li>
+      <li><b>LangMem conceptual guide</b> — <code>create_prompt_optimizer</code> (procedural), episodic-as-few-shot, namespacing. <code>langchain-ai.github.io/langmem</code></li>
+    </ul>
+    <h4>Firewall-proof embedded engine (§13)</h4>
+    <ul class="src">
+      <li><b>SQLite FTS5</b> — official docs: BM25 ranking built in since v3.9.0. <code>sqlite.org/fts5.html</code></li>
+      <li><b>sqlite-vec</b> (Alex Garcia) — single loadable extension, vectors as BLOBs, local KNN, pip-installable</li>
+      <li><b>model2vec</b> (MinishLab) — static CPU embeddings, numpy-only, ~8–30&nbsp;MB, 500× faster; vendorable offline. <code>github.com/MinishLab/model2vec</code></li>
+      <li><b>sqliteai/sqlite-memory</b> — markdown-as-source-of-truth + hybrid (vector + FTS5) + local embedding via llama.cpp</li>
+      <li><b>bozbuilds/AIngram</b> — one-file local-first agent memory: sqlite-vec + FTS5 + knowledge graph + MCP server, "no cloud dependencies" (Apache-2.0)</li>
+      <li><b>"Why SQLite+FTS5 beats Vector DBs for AI Agent Memory"</b> (BrainDB) — FTS5 BM25 + BLOB vectors + RRF hybrid, in practice</li>
+    </ul>
+  </section>
+
+  <div class="footer">
+    <p>Prepared as a teaching + deep-research brief on AI agent memory, oriented toward clicode and an LLM-systems job search. Climb the §09 ladder one rung at a time — the first rung (files only) already changes how clicode behaves. The rest is there when a real failure mode asks for it.</p>
+  </div>
+
+  </main>
+</div>
+</body>
+</html>
